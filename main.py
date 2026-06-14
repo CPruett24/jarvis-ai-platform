@@ -1,3 +1,10 @@
-from services.speaker import speak
+from commands.router import process
 
-speak("Hello Chandler. Systems Online.")
+while True:
+    command = input("You: ")
+
+    if command.lower() == "exit":
+        print("Shutting down.")
+        break
+
+    process(command)
