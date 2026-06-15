@@ -1,25 +1,24 @@
-from services.speaker import speak
-import subprocess
-from datetime import datetime
-import webbrowser
+from commands.actions import (
+    hello,
+    open_vscode,
+    current_time,
+    open_github,
+    open_chatgpt,
+    unknown,
+)
+
+COMMANDS = {
+    "hello": hello,
+    "open vscode": open_vscode,
+    "what time is it": current_time,
+    "open github": open_github,
+    "open chatgpt": open_chatgpt,
+}
+
 
 def process(command):
     command = command.lower()
-    
-    if command == "hello":
-        speak("Hello Chandler")
 
-    elif command == "open vscode":
-        speak("Opening Visual Studio Code")
-        subprocess.run(["code"], shell=True)
+    action = COMMANDS.get(command, unknown)
 
-    elif command == "what time is it":
-        now = datetime.now().strftime("%I:%M %p")
-        speak(f"The current time is {now}")
-
-    elif command == "open github":
-        speak("Opening GitHub")
-        webbrowser.open("https://github.com")
-
-    else:
-        speak("Sorry I don't know how to do that yet.")
+    action()
