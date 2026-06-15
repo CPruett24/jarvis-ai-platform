@@ -7,6 +7,15 @@ from commands.actions import (
     unknown,
 )
 
+ALIASES = {
+    "open chat gpt": "open chatgpt",
+    "open chat g p t": "open chatgpt",
+    "what's the time": "what time is it",
+    "tell me the time": "what time is it",
+    "hi": "hello",
+    "hey": "hello",
+}
+
 COMMANDS = {
     "hello": hello,
     "open vscode": open_vscode,
@@ -18,6 +27,9 @@ COMMANDS = {
 
 def process(command):
     command = command.lower()
+
+    # Translate aliases into actual commands
+    command = ALIASES.get(command, command)
 
     action = COMMANDS.get(command, unknown)
 
