@@ -4,6 +4,8 @@ from commands.actions import (
     current_time,
     open_github,
     open_chatgpt,
+    remember_command,
+    recall_memories,
     unknown,
 )
 
@@ -22,14 +24,19 @@ COMMANDS = {
     "what time is it": current_time,
     "open github": open_github,
     "open chatgpt": open_chatgpt,
+    "what do you remember": recall_memories,
 }
 
 
 def process(command):
     command = command.lower()
 
-    # Translate aliases into actual commands
     command = ALIASES.get(command, command)
+
+    if command.startswith("remember"):
+        remember_command(command)
+
+        return
 
     action = COMMANDS.get(command, unknown)
 

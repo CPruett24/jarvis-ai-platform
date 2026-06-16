@@ -2,6 +2,23 @@ from services.speaker import speak
 import subprocess
 from datetime import datetime
 import webbrowser
+from services.memory_service import remember, get_memories
+
+def remember_command(command):
+    memory = command.replace("remember ", "", 1).strip()
+
+    remember(memory)
+    speak("Got that stored Chandler.")
+
+def recall_memories():
+    memories = get_memories()
+    if not memories:
+        speak("I don't remember anything yet.")
+        return
+
+    speak("Here's what I remember:")
+    for memory in memories:
+        speak(memory.content)
 
 
 def hello():
