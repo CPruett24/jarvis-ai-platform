@@ -1,3 +1,6 @@
+from services.ai_service import ask_ai
+from services.speaker import speak
+
 from commands.actions import (
     hello,
     open_vscode,
@@ -51,6 +54,11 @@ def process(command):
 
         return
 
-    action = COMMANDS.get(command, unknown)
+    action = COMMANDS.get(command)
 
-    action()
+    if action:
+        action()
+    else:
+        response = ask_ai(command)
+
+        speak(response)
