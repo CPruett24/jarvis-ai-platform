@@ -13,6 +13,22 @@ def get_memories():
     session.close()
     return memories
 
+def get_memory_context():
+
+    memories = get_memories()
+
+    if not memories:
+        return "No stored memories."
+
+    memory_text = []
+
+    for memory in memories:
+        memory_text.append(
+            f"User memory: {memory.content}"
+        )
+
+    return "\n".join(memory_text)
+
 def search_memories(keyword):
     session = SessionLocal()
     memories = (session.query(Memory).filter(Memory.content.contains(keyword)).all())

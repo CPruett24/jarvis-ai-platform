@@ -1,4 +1,4 @@
-from services.ai_service import ask_ai
+from services.ai_service import ask_ai, detect_intent
 from services.speaker import speak
 
 from commands.actions import (
@@ -21,6 +21,10 @@ ALIASES = {
     "tell me the time": "what time is it",
     "hi": "hello",
     "hey": "hello",
+    "what's the time": "what time is it",
+    "tell me the time": "what time is it",
+    "what time is it right now": "what time is it",
+    "can you tell me the time": "what time is it",
 }
 
 COMMANDS = {
@@ -32,9 +36,20 @@ COMMANDS = {
     "what do you remember": recall_memories,
 }
 
+INTENT_COMMANDS = {
+    "hello": hello,
+    "open_vscode": open_vscode,
+    "current_time": current_time,
+    "open_github": open_github,
+    "open_chatgpt": open_chatgpt,
+    "recall_memories": recall_memories,
+}
+
 
 def process(command):
     command = command.lower()
+
+    command = command.strip(".,!?")
 
     command = ALIASES.get(command, command)
 
@@ -58,7 +73,18 @@ def process(command):
 
     if action:
         action()
-    else:
-        response = ask_ai(command)
+        return
 
-        speak(response)
+    intent = detect_intent(command)
+
+    print(f"Detected intent: {intent}")
+
+    intent_action = INTENT_COMMANDS.get(intent)
+
+    if intent_action:
+        intent_action()
+        return
+
+    response = ask_ai(command)
+
+    speak(response)

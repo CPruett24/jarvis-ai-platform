@@ -1,4 +1,5 @@
 import speech_recognition as sr
+from services.transcription_service import transcribe_audio
 
 recognizer = sr.Recognizer()
 microphone = sr.Microphone(device_index=1)
@@ -29,7 +30,7 @@ def listen_for_speech():
             return ""
 
     try:
-        command = recognizer.recognize_google(audio)
+        command = transcribe_audio(audio)
 
         print(f"You: {command}")
 
