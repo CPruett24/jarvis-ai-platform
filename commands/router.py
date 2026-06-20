@@ -6,6 +6,8 @@ from commands.actions import (
     open_chatgpt,
     remember_command,
     recall_memories,
+    search_memory_command,
+    forget_memory_command,
     unknown,
 )
 
@@ -33,8 +35,19 @@ def process(command):
 
     command = ALIASES.get(command, command)
 
+    # Dynamic memory commands
     if command.startswith("remember"):
         remember_command(command)
+
+        return
+    
+    if command.startswith("what do you remember about"):
+        search_memory_command(command)
+
+        return
+    
+    if command.startswith("forget"):
+        forget_memory_command(command)
 
         return
 

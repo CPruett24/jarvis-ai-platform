@@ -2,7 +2,7 @@ from services.speaker import speak
 import subprocess
 from datetime import datetime
 import webbrowser
-from services.memory_service import remember, get_memories
+from services.memory_service import remember, get_memories, search_memories, delete_memory
 
 def remember_command(command):
     memory = command.replace("remember ", "", 1).strip()
@@ -20,6 +20,31 @@ def recall_memories():
     for memory in memories:
         speak(memory.content)
 
+def search_memory_command(command):
+    keyword = (command.replace("what do you remember about", "",).strip())
+
+    print(f"Keyword: {keyword}")
+
+    memories = search_memories(keyword)
+    if not memories:
+        speak(f"I don't remember anything about {keyword}.")
+        return
+    
+    speak(f"Here's what I remember about {keyword}:")
+    for memory in memories:
+        speak(memory.content)
+
+def forget_memory_command(command):
+    keyword = (command.replace("forget", "",).strip())
+
+    print(f"DELETE KEYWORD: {keyword}")
+
+    deleted = delete_memory(keyword)
+
+    if deleted:
+        speak(f"I've forgotten that.")
+    else:
+        speak(f"I couldn't find that memory.")
 
 def hello():
     speak("Hello Chandler")
