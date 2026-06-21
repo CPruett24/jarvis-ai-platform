@@ -78,6 +78,7 @@ def process(command):
         workspace_name = (
             command
             .replace("open my", "")
+            .replace("open", "")
             .replace("workspace", "")
             .strip()
         )

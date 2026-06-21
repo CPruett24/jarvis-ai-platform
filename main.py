@@ -3,6 +3,11 @@ from services.listener import (
     listen_for_speech,
     listen_for_wake_word,
 )
+from services.status_service import (
+    update_last_command,
+    update_status,
+)
+
 from commands.router import process
 from services.speaker import speak
 
@@ -18,6 +23,8 @@ SESSION_END_PHRASES = [
 ]
 
 speak("JARVIS online.")
+
+update_status("listening")
 
 calibrate_microphone()
 
@@ -38,6 +45,8 @@ while True:
         while True:
 
             command = listen_for_speech()
+
+            update_last_command(command)
 
             if command == "":
                 speak("Returning to standby.")

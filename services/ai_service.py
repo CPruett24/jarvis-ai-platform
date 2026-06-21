@@ -1,10 +1,13 @@
 from ollama import chat
 from services.conversation_service import add_user_message, add_assistant_message, get_history
 from services.memory_service import get_memory_context
+from services.status_service import update_status
 
 def ask_ai(prompt):
 
     add_user_message(prompt)
+    update_status("thinking")
+    response = chat(...)
 
     memory_context = get_memory_context()
 
