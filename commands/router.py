@@ -11,6 +11,7 @@ from commands.actions import (
     recall_memories,
     search_memory_command,
     forget_memory_command,
+    open_coding_workspace,
     unknown,
 )
 
@@ -43,6 +44,7 @@ INTENT_COMMANDS = {
     "open_github": open_github,
     "open_chatgpt": open_chatgpt,
     "recall_memories": recall_memories,
+    "open_coding_workspace": open_coding_workspace,
 }
 
 

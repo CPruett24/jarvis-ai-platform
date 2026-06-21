@@ -76,13 +76,25 @@ def detect_intent(command):
 
                     "\nIf multiple actions are requested, return multiple intents separated by commas."
 
-                    "\nExamples:"
+                    "Examples:\n\n"
 
-                    "\nopen_github"
+                    "Open GitHub\n"
+                    "-> open_github\n\n"
 
-                    "\nopen_github,open_vscode"
+                    "Can you open GitHub for me?\n"
+                    "-> open_github\n\n"
 
-                    "\nopen_chatgpt,open_github"
+                    "Open GitHub and VS Code\n"
+                    "-> open_github,open_vscode\n\n"
+
+                    "Open my coding workspace\n"
+                    "-> open_coding_workspace\n\n"
+
+                    "Launch my coding workspace\n"
+                    "-> open_coding_workspace\n\n"
+
+                    "Start my coding workspace\n"
+                    "-> open_coding_workspace\n\n"
 
                     "\nIf no action is requested, return 'none'."
 
@@ -97,6 +109,7 @@ def detect_intent(command):
                     "recall_memories\n"
                     "search_memory\n"
                     "forget_memory\n"
+                    "open_coding_workspace\n"
                     "none"
                 ),
             },
