@@ -22,8 +22,8 @@ def listen_for_speech():
         try:
             audio = recognizer.listen(
                 source,
-                timeout=5,
-                phrase_time_limit=5
+                timeout=10,
+                phrase_time_limit=10
             )
 
         except sr.WaitTimeoutError:

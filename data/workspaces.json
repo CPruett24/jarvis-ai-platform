@@ -1,0 +1,26 @@
+{
+    "coding": {
+        "speak": "Initializing coding workspace.",
+        "actions": [
+            "vscode",
+            "github",
+            "chatgpt"
+        ]
+    },
+
+    "aws": {
+        "speak": "Initializing AWS workspace.",
+        "actions": [
+            "aws_console",
+            "chatgpt"
+        ]
+    },
+    "school": {
+        "speak": "Initializing school workspace.",
+        "actions": [
+            "canvas",
+            "school_email",
+            "vscode"
+        ]
+    }
+}

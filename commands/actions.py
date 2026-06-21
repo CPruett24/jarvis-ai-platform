@@ -3,6 +3,7 @@ import subprocess
 from datetime import datetime
 import webbrowser
 from services.memory_service import remember, get_memories, search_memories, delete_memory
+from services.workspace_service import open_workspace
 
 def remember_command(command):
     memory = command.replace("remember ", "", 1).strip()
@@ -47,28 +48,13 @@ def forget_memory_command(command):
         speak(f"I couldn't find that memory.")
 
 def open_coding_workspace():
-
-    speak("Initializing coding workspace.")
-
-    subprocess.run(["code"], shell=True)
-
-    webbrowser.open("https://github.com")
-
-    webbrowser.open("https://chatgpt.com")
+    open_workspace("coding")
 
 def open_aws_workspace():
-    speak("Initializing AWS workspace.")
-
-    webbrowser.open("https://console.aws.amazon.com")
-    webbrowser.open("https://chatgpt.com")
-
+    open_workspace("aws")
 
 def open_school_workspace():
-    speak("Initializing school workspace.")
-
-    webbrowser.open("https://canvas.fau.edu/")
-    webbrowser.open("https://outlook.office.com/mail/?realm=fau.edu&vd=outlook")
-    webbrowser.open("https://myfau.fau.edu/u/myfau/index")
+    open_workspace("school")
 
 def hello():
     speak("Hello Chandler")
