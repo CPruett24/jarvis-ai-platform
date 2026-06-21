@@ -96,6 +96,12 @@ def detect_intent(command):
                     "Start my coding workspace\n"
                     "-> open_coding_workspace\n\n"
 
+                    "Open my AWS workspace\n"
+                    "-> open_aws_workspace\n\n"
+
+                    "Open my school workspace\n"
+                    "-> open_school_workspace\n\n"
+
                     "\nIf no action is requested, return 'none'."
 
                     "\n\nAvailable intents:"

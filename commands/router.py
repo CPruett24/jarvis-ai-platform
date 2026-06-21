@@ -45,6 +45,8 @@ INTENT_COMMANDS = {
     "open_chatgpt": open_chatgpt,
     "recall_memories": recall_memories,
     "open_coding_workspace": open_coding_workspace,
+    "open_aws_workspace": open_aws_workspace,
+    "open_school_workspace": open_school_workspace
 }
 
 
