@@ -72,7 +72,21 @@ def detect_intent(command):
 
                     "If the user is asking a question, requesting information, making conversation, or discussing a topic, return 'none'.\n\n"
 
-                    "Return ONLY one of these values:\n\n"
+                    "Return ONLY intent names."
+
+                    "\nIf multiple actions are requested, return multiple intents separated by commas."
+
+                    "\nExamples:"
+
+                    "\nopen_github"
+
+                    "\nopen_github,open_vscode"
+
+                    "\nopen_chatgpt,open_github"
+
+                    "\nIf no action is requested, return 'none'."
+
+                    "\n\nAvailable intents:"
 
                     "hello\n"
                     "open_vscode\n"

@@ -79,10 +79,22 @@ def process(command):
 
     print(f"Detected intent: {intent}")
 
-    intent_action = INTENT_COMMANDS.get(intent)
+    if intent != "none":
 
-    if intent_action:
-        intent_action()
+        intents = [
+            i.strip()
+            for i in intent.split(",")
+        ]
+
+        for single_intent in intents:
+
+            intent_action = INTENT_COMMANDS.get(
+                single_intent
+            )
+
+            if intent_action:
+                intent_action()
+
         return
 
     response = ask_ai(command)

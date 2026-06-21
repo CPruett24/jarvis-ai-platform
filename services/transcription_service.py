@@ -3,7 +3,7 @@ import tempfile
 import os
 
 model = WhisperModel(
-    "base",
+    "small",
     device="cpu",
     compute_type="int8"
 )
