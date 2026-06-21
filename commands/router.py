@@ -12,6 +12,8 @@ from commands.actions import (
     search_memory_command,
     forget_memory_command,
     open_coding_workspace,
+    open_aws_workspace,
+    open_school_workspace,
     unknown,
 )
 
