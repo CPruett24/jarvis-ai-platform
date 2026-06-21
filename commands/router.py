@@ -1,5 +1,6 @@
 from services.ai_service import ask_ai, detect_intent
 from services.speaker import speak
+from services.workspace_service import open_workspace
 
 from commands.actions import (
     hello,
@@ -46,9 +47,6 @@ INTENT_COMMANDS = {
     "open_github": open_github,
     "open_chatgpt": open_chatgpt,
     "recall_memories": recall_memories,
-    "open_coding_workspace": open_coding_workspace,
-    "open_aws_workspace": open_aws_workspace,
-    "open_school_workspace": open_school_workspace
 }
 
 
@@ -74,12 +72,28 @@ def process(command):
         forget_memory_command(command)
 
         return
+    
+    if "workspace" in command:
+
+        workspace_name = (
+            command
+            .replace("open my", "")
+            .replace("workspace", "")
+            .strip()
+        )
+
+        print(f"Workspace requested: {workspace_name}")
+
+        open_workspace(workspace_name)
+
+        return
 
     action = COMMANDS.get(command)
 
     if action:
         action()
         return
+    
 
     intent = detect_intent(command)
 
