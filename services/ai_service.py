@@ -7,7 +7,6 @@ def ask_ai(prompt):
 
     add_user_message(prompt)
     update_status("thinking")
-    response = chat(...)
 
     memory_context = get_memory_context()
 
