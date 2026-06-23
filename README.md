@@ -1,8 +1,11 @@
-# JARVIS AI Assistant
+# JARVIS AI Platform
 
-A voice-controlled AI assistant inspired by JARVIS from Iron Man.
+A local-first AI assistant and agent platform inspired by JARVIS from Iron Man.
 
-JARVIS combines local AI, voice interaction, persistent memory, and natural language command execution into a fully local personal assistant built with Python.
+JARVIS combines local AI, voice interaction, persistent memory, automation, workspaces, and agent-oriented architecture into an extensible personal AI platform built with Python.
+
+The long-term goal is to evolve JARVIS from a personal voice assistant into a business-capable AI operating layer capable of managing projects, workflows, automation, analytics, and autonomous agents.
+
 
 ## Features
 
@@ -50,10 +53,16 @@ JARVIS:
 Yes, Chandler?
 
 User:
-What do you know about my AWS plans?
+Remember that my project deadline is Friday.
 
 JARVIS:
-You told me your AWS Cloud Practitioner exam is August 15th.
+Got it stored.
+
+User:
+What do you remember about my project?
+
+JARVIS:
+You told me your project deadline is Friday.
 
 User:
 Can you open GitHub for me?
@@ -126,29 +135,115 @@ JARVIS-AI/
 * AI intent recognition
 * Natural language command execution
 
-## Roadmap
+# Roadmap
 
-### Near Term
+## Phase 1 — Foundation (Current)
 
-* Multi-action commands
+### Completed
+
+* Wake word detection
+* Faster-Whisper speech recognition
+* Ollama integration
+* Text-to-speech responses
+* Conversational context
+* SQLite memory system
+* Intent recognition
+* Dynamic workspaces
+* Streamlit dashboard
 * Windows startup integration
-* Desktop dashboard
+* Live status system
 
-### Latest Milestone: Mk. VI
+### Planned
 
-* Faster-Whisper Integration
-* Local LLM (Ollama)
-* Conversational Context
-* Persistent Memory
-* AI Intent Recognition
+* Persistent conversation database
+* Interruptible speech
+* Dashboard improvements
+* Enhanced memory retrieval
 
-### Future
+---
 
-* Calendar and reminders
-* Tool usage and automation
-* Cloud synchronization
-* Advanced memory retrieval
-* Multi-device support
+## Phase 2 — Platform
+
+### Planned
+
+* Tool framework
+* Browser automation
+* Desktop automation
+* Workflow engine
+* Task management system
+* Plugin architecture
+
+---
+
+## Phase 3 — Agent System
+
+### Planned
+
+* Planner agent
+* Executor agent
+* Goal tracking
+* Multi-step task execution
+* Tool orchestration
+* Long-running task support
+
+---
+
+## Phase 4 — Business Operations Layer
+
+### Planned
+
+* Email integration
+* GitHub integration
+* Calendar integration
+* Analytics integrations
+* Customer support workflows
+* Revenue and KPI reporting
+
+Example:
+
+"How is the business doing this week?"
+
+JARVIS can summarize:
+
+* Revenue
+* User growth
+* Support requests
+* Development progress
+* Marketing performance
+* Recommended actions
+
+---
+
+## Phase 5 — AI Operating Layer
+
+### Planned
+
+* Multi-agent architecture
+* Developer agents
+* Research agents
+* Marketing agents
+* Autonomous workflows
+* Continuous monitoring
+* Business intelligence and recommendations
+
+Example:
+
+"Launch the new feature."
+
+JARVIS could:
+
+1. Create development tasks
+2. Implement changes
+3. Run tests
+4. Deploy updates
+5. Monitor results
+6. Report outcomes
+
+---
+
+## Vision
+
+JARVIS is being built as a local-first AI platform that evolves from a personal assistant into a system capable of helping manage applications, projects, workflows, customers, analytics, and businesses.
 
 ## Author
 

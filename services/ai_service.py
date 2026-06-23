@@ -33,11 +33,11 @@ def ask_ai(prompt):
 
                 "\n\nWhen discussing stored memories, phrase them naturally."
 
-                "\nExample: say 'Your AWS exam is August 15th.'"
+                "\nExample: say 'Your project deadline is Friday.'"
 
-                "\nExample: say 'You told me your AWS exam is August 15th.'"
+                "\nExample: say 'You told me your project deadline is Friday.'"
 
-                "\nDo not say \"Chandler's AWS exam is August 15th.\""
+                "\nDo not say \"User's name's project deadline is Friday.\""
 
                 "\n\nThe following memories are facts about the person you are speaking to:\n\n"
 

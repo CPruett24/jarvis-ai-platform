@@ -2,3 +2,13 @@
 __pycache__/
 .env
 .vscode/
+
+*.db
+
+logs/
+cache/
+
+.pytest_cache/
+
+start_jarvis.bat
+restart_jarvis.bat

@@ -1,25 +1,31 @@
 {
     "coding": {
         "speak": "Initializing coding workspace.",
+        "urls": [
+            "https://github.com",
+            "https://chatgpt.com"
+        ],
         "actions": [
-            "vscode",
-            "github",
-            "chatgpt"
+            "vscode"
         ]
     },
 
     "aws": {
         "speak": "Initializing AWS workspace.",
-        "actions": [
-            "aws_console",
-            "chatgpt"
+        "urls": [
+            "https://console.aws.amazon.com",
+            "https://chatgpt.com"
         ]
     },
+
     "school": {
         "speak": "Initializing school workspace.",
+        "urls": [
+            "https://canvas.fau.edu/",
+            "https://outlook.office.com",
+            "https://myfau.fau.edu/u/myfau/index"
+        ],
         "actions": [
-            "canvas",
-            "school_email",
             "vscode"
         ]
     }

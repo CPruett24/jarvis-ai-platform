@@ -25,25 +25,11 @@ def open_workspace(name):
 
     speak(workspace["speak"])
 
-    for action in workspace["actions"]:
+    for action in workspace.get("actions", []):
 
         if action == "vscode":
             subprocess.run(["code"], shell=True)
 
-        elif action == "github":
-            webbrowser.open("https://github.com")
+    for url in workspace.get("urls", []):
 
-        elif action == "chatgpt":
-            webbrowser.open("https://chatgpt.com")
-
-        elif action == "aws_console":
-            webbrowser.open("https://console.aws.amazon.com")
-
-        elif action == "canvas":
-            webbrowser.open("https://canvas.fau.edu/")
-
-        elif action == "school_email": 
-            webbrowser.open("https://outlook.office.com/mail/?realm=fau.edu&vd=outlook")
-
-        elif action == "school_portal":
-            webbrowser.open("https://myfau.fau.edu/u/myfau/index")
+        webbrowser.open(url)
