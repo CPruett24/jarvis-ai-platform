@@ -7,9 +7,16 @@ from services.status_service import (
     update_last_command,
     update_status,
 )
+from services.conversation_db import (
+    start_session,
+    end_session,
+)
 
 from commands.router import process
 from services.speaker import speak
+from models.session import Session
+from models.conversation import Conversation
+from models.memory import initialize_database
 
 SESSION_END_PHRASES = [
     "that's all",
@@ -22,6 +29,8 @@ SESSION_END_PHRASES = [
     "im done",
 ]
 
+initialize_database()
+start_session()
 speak("JARVIS online.")
 
 update_status("listening")
@@ -35,7 +44,11 @@ while True:
     wake_result = listen_for_wake_word()
 
     if wake_result == "exit":
+
+        end_session()
+
         speak("Goodbye Chandler.")
+
         break
 
     if wake_result:
@@ -57,9 +70,13 @@ while True:
             print(f"Session command: '{command}'")
 
             if command == "exit":
-                speak("Goodbye Chandler.")
-                exit()
 
+                end_session()
+
+                speak("Goodbye Chandler.")
+
+                exit()
+                
             if any(
                 phrase in command
                 for phrase in SESSION_END_PHRASES

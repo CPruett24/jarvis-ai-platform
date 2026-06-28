@@ -1,7 +1,7 @@
 import streamlit as st
 from services.memory_service import get_memories
 from services.workspace_service import open_workspace
-from services.conversation_service import get_history
+from services.conversation_db import get_recent_messages
 from services.status_service import load_status
 from streamlit_autorefresh import st_autorefresh
 
@@ -75,9 +75,9 @@ st.subheader(f"Memories ({len(memories)})")
 for memory in memories:
     st.info(memory.content)
 
-st.subheader("Recent Conversation")
+st.subheader("Conversation History")
 
-history = get_history()
+history = get_recent_messages()
 
 if not history:
     st.write("No conversation history yet.")

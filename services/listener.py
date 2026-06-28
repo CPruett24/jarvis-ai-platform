@@ -2,7 +2,12 @@ import speech_recognition as sr
 from services.transcription_service import transcribe_audio
 
 recognizer = sr.Recognizer()
-microphone = sr.Microphone(device_index=1)
+
+recognizer.pause_threshold = 1.2
+recognizer.non_speaking_duration = 0.8
+recognizer.phrase_threshold = 0.3
+
+microphone = sr.Microphone()
 
 WAKE_WORDS = ["jarvis", "hey jarvis"]
 
@@ -12,6 +17,7 @@ def calibrate_microphone():
 
     with microphone as source:
         recognizer.adjust_for_ambient_noise(source, duration=1)
+        recognizer.dynamic_energy_threshold = True
 
     print("Calibration complete.\n")
 

@@ -1,16 +1,31 @@
+from services.conversation_db import save_message
+
 conversation_history = []
 
-def add_user_message(message):
-    conversation_history.append({"role": "user", "content": message})
 
-def add_assistant_message(message):
-    conversation_history.append({"role": "assistant", "content": message})
+def add_message(role, message):
+
+    entry = {
+        "role": role,
+        "content": message
+    }
+
+    conversation_history.append(entry)
+
+    try:
+        save_message(role, message)
+
+    except Exception as e:
+        print(f"Conversation save failed: {e}")
+
 
 def get_conversation_history():
     return conversation_history
 
-def get_history():
-    return conversation_history[-10:]  # Return the last 10 messages for context
 
-def clear_history():    
+def get_history():
+    return conversation_history[-10:]
+
+
+def clear_history():
     conversation_history.clear()

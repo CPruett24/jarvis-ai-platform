@@ -117,7 +117,13 @@ def process(command):
                 intent_action()
 
         return
+    
+    print("Calling ask_ai...")
 
     response = ask_ai(command)
+
+    print("AI returned:", response)
+
+    print("Speaking...")
 
     speak(response)
