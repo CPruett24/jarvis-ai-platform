@@ -1,22 +1,9 @@
-from services.ai_service import ask_ai, detect_intent
+from services.ai_service import ask_ai, detect_tool
 from services.speaker import speak
 from services.workspace_service import open_workspace
-
-from commands.actions import (
-    hello,
-    open_vscode,
-    current_time,
-    open_github,
-    open_chatgpt,
-    remember_command,
-    recall_memories,
-    search_memory_command,
-    forget_memory_command,
-    open_coding_workspace,
-    open_aws_workspace,
-    open_school_workspace,
-    unknown,
-)
+from commands.static_commands import COMMANDS
+from commands.dynamic_commands import process_dynamic_command
+from commands.tool_manager import execute_tool
 
 ALIASES = {
     "open chat gpt": "open chatgpt",
@@ -31,25 +18,6 @@ ALIASES = {
     "can you tell me the time": "what time is it",
 }
 
-COMMANDS = {
-    "hello": hello,
-    "open vscode": open_vscode,
-    "what time is it": current_time,
-    "open github": open_github,
-    "open chatgpt": open_chatgpt,
-    "what do you remember": recall_memories,
-}
-
-INTENT_COMMANDS = {
-    "hello": hello,
-    "open_vscode": open_vscode,
-    "current_time": current_time,
-    "open_github": open_github,
-    "open_chatgpt": open_chatgpt,
-    "recall_memories": recall_memories,
-}
-
-
 def process(command):
     command = command.lower()
 
@@ -57,20 +25,7 @@ def process(command):
 
     command = ALIASES.get(command, command)
 
-    # Dynamic memory commands
-    if command.startswith("remember"):
-        remember_command(command)
-
-        return
-    
-    if command.startswith("what do you remember about"):
-        search_memory_command(command)
-
-        return
-    
-    if command.startswith("forget"):
-        forget_memory_command(command)
-
+    if process_dynamic_command(command):
         return
     
     if "workspace" in command:
@@ -85,36 +40,30 @@ def process(command):
 
         print(f"Workspace requested: {workspace_name}")
 
-        open_workspace(workspace_name)
+        execute_tool(f"open_{workspace_name}_workspace")
 
         return
 
-    action = COMMANDS.get(command)
+    tool_name = COMMANDS.get(command)
 
-    if action:
-        action()
+    if tool_name:
+        execute_tool(tool_name)
         return
-    
 
-    intent = detect_intent(command)
+    tool = detect_tool(command)
 
-    print(f"Detected intent: {intent}")
+    print(f"Selected tool: {tool}")
 
-    if intent != "none":
+    if tool != "none":
 
-        intents = [
-            i.strip()
-            for i in intent.split(",")
+        tool_names = [
+            t.strip()
+            for t in tool.split(",")
         ]
 
-        for single_intent in intents:
+        for tool_name in tool_names:
 
-            intent_action = INTENT_COMMANDS.get(
-                single_intent
-            )
-
-            if intent_action:
-                intent_action()
+            execute_tool(tool_name)
 
         return
     

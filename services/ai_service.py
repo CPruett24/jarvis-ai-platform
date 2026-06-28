@@ -2,6 +2,7 @@ from ollama import chat
 from services.conversation_service import add_message, get_history
 from services.memory_service import get_memory_context
 from services.status_service import update_status
+from commands.tool_manager import get_tool_descriptions
 
 def ask_ai(prompt):
 
@@ -64,8 +65,9 @@ def ask_ai(prompt):
 
     return answer
 
-def detect_intent(command):
+def detect_tool(command):
 
+    tool_descriptions = get_tool_descriptions()
     response = chat(
         model="llama3.1:8b",
         messages=[
@@ -112,19 +114,11 @@ def detect_intent(command):
 
                     "\nIf no action is requested, return 'none'."
 
-                    "\n\nAvailable intents:"
+                    "\n\nAvailable tools:\n\n"
 
-                    "hello\n"
-                    "open_vscode\n"
-                    "open_github\n"
-                    "open_chatgpt\n"
-                    "current_time\n"
-                    "remember\n"
-                    "recall_memories\n"
-                    "search_memory\n"
-                    "forget_memory\n"
-                    "open_coding_workspace\n"
-                    "none"
+                    f"{tool_descriptions}"
+
+                    "\n\nIf none of these tools apply, return 'none'."
                 ),
             },
             {
