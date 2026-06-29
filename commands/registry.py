@@ -16,6 +16,10 @@ from commands.actions import (
     git_status,
     git_remote,
     python_version,
+    project_tree,
+    find_file,
+    summarize_file_action,
+    search_project_action,
 )
 
 COMMAND_REGISTRY = {
@@ -102,6 +106,25 @@ COMMAND_REGISTRY = {
     "python_version": {
         "function": python_version,
         "description": "Returns the installed Python version."
+    },
+
+    "project_tree": {
+    "function": project_tree,
+    "description": "Shows the top-level project structure."
+    },
+
+    "find_file": {
+        "function": find_file,
+        "description": "Finds a file within the project."
+    },
+    "summarize_file": {
+    "function": summarize_file_action,
+    "description": "Summarizes a project file."
+    },
+
+    "search_project": {
+        "function": search_project_action,
+        "description": "Searches the project for text."
     },
 
 }

@@ -133,4 +133,6 @@ def detect_tool(command):
         ],
     )
 
-    return response["message"]["content"].strip()
+    tool = response["message"]["content"].strip().splitlines()[0]
+
+    return tool

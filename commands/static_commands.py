@@ -23,4 +23,6 @@ COMMANDS = {
     "git status": "git_status",
     "what git remotes do i have": "git_remote",
     "what version of python am i running": "python_version",
+    "show me the project structure": "project_tree",
+    "project structure": "project_tree",
 }

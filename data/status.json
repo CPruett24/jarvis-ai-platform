@@ -1,5 +1,5 @@
 {
     "status": "listening",
-    "last_command": "what version of python am i running?",
-    "last_response": "You are running Python version 3.12.10."
+    "last_command": "search for execute tool",
+    "last_response": "I found 3 matching files."
 }

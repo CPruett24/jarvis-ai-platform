@@ -4,10 +4,13 @@ from datetime import datetime
 import webbrowser
 from services.memory_service import remember, get_memories, search_memories, delete_memory
 from services.workspace_service import open_workspace
+from pathlib import Path
 import os
 import platform
 import sys
 import subprocess
+from services.project_service import summarize_file, search_project
+
 
 def remember_command(command):
     memory = command.replace("remember ", "", 1).strip()
@@ -187,6 +190,155 @@ def python_version():
     speak(
         f"You are running Python version {spoken_version}."
     )
+
+def project_tree():
+
+    root = Path.cwd()
+
+    speak(f"You are currently in the {root.name} project.")
+
+    directories = []
+    files = []
+
+    for item in sorted(root.iterdir()):
+
+        if item.name.startswith("."):
+            continue
+
+        if item.is_dir():
+            directories.append(item.name)
+
+        else:
+            files.append(item.name)
+
+    speak(
+        f"I found {len(directories)} folders and {len(files)} files."
+    )
+
+    print("\n===== PROJECT STRUCTURE =====")
+
+    print(f"{root.name}/")
+
+    for directory in directories:
+        print(f"  📁 {directory}/")
+
+    for file in files:
+        print(f"  📄 {file}")
+
+    print("=============================\n")
+
+def find_file(filename=None):
+
+    if not filename:
+
+        speak("Please specify a filename.")
+
+        return
+
+    root = Path.cwd()
+
+    matches = []
+
+    for path in root.rglob("*"):
+
+        if path.name.lower() == filename.lower():
+
+            matches.append(path)
+
+    if not matches:
+
+        speak(f"I couldn't find {filename}.")
+
+        return
+
+    speak(
+        f"I found {len(matches)} matching file."
+        if len(matches) == 1
+        else f"I found {len(matches)} matching files."
+    )
+
+    print("\n===== SEARCH RESULTS =====")
+
+    for match in matches:
+        print(match.relative_to(root))
+
+    print("==========================\n")
+
+def summarize_file_action(filename=None):
+
+    if not filename:
+
+        speak("Please specify a filename.")
+
+        return
+
+    summary = summarize_file(filename)
+
+    if summary is None:
+
+        speak(f"I couldn't find {filename}.")
+
+        return
+
+    suffix = ""
+
+    if summary["classes"] == 1:
+        suffix = "class"
+    else:
+        suffix = "classes"
+
+    speak(
+        f"{filename} contains "
+        f"{summary['lines']} lines, "
+        f"{summary['functions']} functions, "
+        f"and {summary['classes']} {suffix}."
+    )
+
+    print("\n===== FILE SUMMARY =====")
+
+    print(f"File: {summary['path']}")
+
+    print(f"Lines: {summary['lines']}")
+
+    print(f"Imports: {summary['imports']}")
+
+    print(f"Functions: {summary['functions']}")
+
+    print(f"Classes: {summary['classes']}")
+
+    print("========================\n")
+
+def search_project_action(keyword=None):
+
+    if not keyword:
+
+        speak("Please specify something to search for.")
+
+        return
+
+    results = search_project(keyword)
+
+    if not results:
+
+        speak(
+            f"I couldn't find '{keyword}' anywhere in the project."
+        )
+
+        return
+
+    speak(
+        f"I found {len(results)} matching files."
+    )
+
+    print("\n===== SEARCH RESULTS =====")
+
+    root = Path.cwd()
+
+    for result in results:
+
+        print(result.relative_to(root))
+
+    print("==========================\n")
 
 def open_coding_workspace(workspace="coding"):
     open_workspace(workspace)

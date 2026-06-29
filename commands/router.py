@@ -4,6 +4,7 @@ from services.workspace_service import open_workspace
 from commands.static_commands import COMMANDS
 from commands.dynamic_commands import process_dynamic_command
 from commands.tool_manager import execute_tool
+from models.tool_request import ToolRequest
 
 ALIASES = {
     "open chat gpt": "open chatgpt",
@@ -39,6 +40,59 @@ def process(command):
     if process_dynamic_command(command):
         return
     
+    if command.startswith("find "):
+
+        filename = command.replace("find ", "", 1).strip()
+
+        execute_tool(
+            ToolRequest(
+                tool="find_file",
+                arguments={
+                    "filename": filename
+                }
+            )
+        )
+
+        return
+    
+    if command.startswith("summarize "):
+
+        filename = command.replace(
+            "summarize ",
+            "",
+            1
+        ).strip()
+
+        execute_tool(
+            ToolRequest(
+                tool="summarize_file",
+                arguments={
+                    "filename": filename
+                }
+            )
+        )
+
+        return
+    
+    if command.startswith("search for "):
+
+        keyword = command.replace(
+            "search for ",
+            "",
+            1
+        ).strip()
+
+        execute_tool(
+            ToolRequest(
+                tool="search_project",
+                arguments={
+                    "keyword": keyword
+                }
+            )
+        )
+
+        return
+
     if "workspace" in command:
 
         workspace_name = None
