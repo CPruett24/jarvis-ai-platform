@@ -1,19 +1,37 @@
 from commands.registry import COMMAND_REGISTRY
+from models.tool_request import ToolRequest
 
 
-def execute_tool(tool_name):
+def execute_tool(request):
+
+    if isinstance(request, str):
+
+        request = ToolRequest(
+            tool=request
+        )
+
+    tool_name = request.tool
 
     print(f"[Tool Manager] Executing: {tool_name}")
 
     tool = COMMAND_REGISTRY.get(tool_name)
 
     if tool is None:
+
         print(f"[Tool Manager] Unknown tool: {tool_name}")
+
         return False
 
     try:
 
-        tool["function"]()
+        arguments = request.arguments
+
+        print(f"[Tool Manager] Arguments: {arguments}")
+
+        if arguments:
+            tool["function"](**arguments)
+        else:
+            tool["function"]()
 
         print(f"[Tool Manager] Completed: {tool_name}")
 
@@ -21,7 +39,9 @@ def execute_tool(tool_name):
 
     except Exception as e:
 
-        print(f"[Tool Manager] Error executing {tool_name}: {e}")
+        print(
+            f"[Tool Manager] Error executing {tool_name}: {e}"
+        )
 
         return False
     

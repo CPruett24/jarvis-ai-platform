@@ -16,6 +16,17 @@ ALIASES = {
     "tell me the time": "what time is it",
     "what time is it right now": "what time is it",
     "can you tell me the time": "what time is it",
+    "where are we": "where am i",
+    "what folder am i in": "where am i",
+    "show files": "list files",
+    "show me the files": "list files",
+    "computer information": "tell me about this computer",
+    "system information": "tell me about this computer",
+    "current branch": "what branch am i on",
+    "repository status": "git status",
+    "repo status": "git status",
+    "python version": "what version of python am i running",
+    "current project": "what project am i in",
 }
 
 def process(command):
@@ -30,19 +41,24 @@ def process(command):
     
     if "workspace" in command:
 
-        workspace_name = (
-            command
-            .replace("open my", "")
-            .replace("open", "")
-            .replace("workspace", "")
-            .strip()
-        )
+        workspace_name = None
 
-        print(f"Workspace requested: {workspace_name}")
+        if "coding" in command:
+            workspace_name = "coding"
 
-        execute_tool(f"open_{workspace_name}_workspace")
+        elif "aws" in command:
+            workspace_name = "aws"
 
-        return
+        elif "school" in command:
+            workspace_name = "school"
+
+        if workspace_name:
+
+            print(f"Workspace requested: {workspace_name}")
+
+            execute_tool(f"open_{workspace_name}_workspace")
+
+            return
 
     tool_name = COMMANDS.get(command)
 

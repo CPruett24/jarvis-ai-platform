@@ -1,3 +1,5 @@
+import json
+from models.tool_request import ToolRequest
 from ollama import chat
 from services.conversation_service import add_message, get_history
 from services.memory_service import get_memory_context
@@ -68,23 +70,22 @@ def ask_ai(prompt):
 def detect_tool(command):
 
     tool_descriptions = get_tool_descriptions()
+
     response = chat(
         model="llama3.1:8b",
         messages=[
             {
                 "role": "system",
                 "content": (
-                    "You are an intent classifier.\n\n"
+                    "You are a tool selector.\n\n"
 
-                    "Your job is to determine whether the user is requesting one of the listed actions.\n\n"
+                    "Your job is to determine which tool should be executed.\n\n"
 
-                    "Only return an intent if the user is clearly asking for that action.\n\n"
+                    "Only return the tool name.\n\n"
 
-                    "If the user is asking a question, requesting information, making conversation, or discussing a topic, return 'none'.\n\n"
+                    "If the user is asking a question, making conversation, or requesting information, return 'none'.\n\n"
 
-                    "Return ONLY intent names."
-
-                    "\nIf multiple actions are requested, return multiple intents separated by commas."
+                    "If multiple tools are requested, return the tool names separated by commas.\n\n"
 
                     "Examples:\n\n"
 
@@ -100,25 +101,29 @@ def detect_tool(command):
                     "Open my coding workspace\n"
                     "-> open_coding_workspace\n\n"
 
-                    "Launch my coding workspace\n"
-                    "-> open_coding_workspace\n\n"
-
-                    "Start my coding workspace\n"
-                    "-> open_coding_workspace\n\n"
-
                     "Open my AWS workspace\n"
                     "-> open_aws_workspace\n\n"
 
                     "Open my school workspace\n"
                     "-> open_school_workspace\n\n"
 
-                    "\nIf no action is requested, return 'none'."
+                    "What time is it?\n"
+                    "-> current_time\n\n"
 
-                    "\n\nAvailable tools:\n\n"
+                    "Hello\n"
+                    "-> hello\n\n"
+
+                    "Remember I like pizza.\n"
+                    "-> none\n\n"
+
+                    "How are you?\n"
+                    "-> none\n\n"
+
+                    "Available tools:\n\n"
 
                     f"{tool_descriptions}"
 
-                    "\n\nIf none of these tools apply, return 'none'."
+                    "\n\nIf no tool should be executed, return 'none'."
                 ),
             },
             {

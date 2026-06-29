@@ -1,5 +1,5 @@
 {
     "status": "listening",
-    "last_command": "how are you today?",
-    "last_response": "JARVIS online."
+    "last_command": "what version of python am i running?",
+    "last_response": "You are running Python version 3.12.10."
 }
