@@ -1,3 +1,4 @@
+from services.conversation_manager import debug_topic, set_topic
 from services.speaker import speak
 import subprocess
 from datetime import datetime
@@ -10,7 +11,7 @@ import platform
 import sys
 import subprocess
 from services.project_service import summarize_file, search_project
-
+from services.project_service import get_file_content
 
 def remember_command(command):
     memory = command.replace("remember ", "", 1).strip()
@@ -339,6 +340,39 @@ def search_project_action(keyword=None):
         print(result.relative_to(root))
 
     print("==========================\n")
+
+def explain_file_action(filename=None, depth=1,):
+
+    if not filename:
+        speak("Please specify a filename.")
+        return
+
+    file_info = get_file_content(filename)
+
+    if file_info is None:
+        speak(f"I couldn't find {filename}.")
+        return
+
+    speak(f"Analyzing {filename}.")
+
+    from services.ai_service import explain_code
+    from services.conversation_manager import set_topic
+
+    explanation = explain_code(file_info, depth)
+
+    set_topic(
+        {
+            "type": "file",
+            "filename": filename,
+            "depth": depth,
+        }
+    )
+
+    print("\n===== CODE EXPLANATION =====\n")
+    print(explanation)
+    print("\n============================\n")
+
+    speak(explanation)
 
 def open_coding_workspace(workspace="coding"):
     open_workspace(workspace)

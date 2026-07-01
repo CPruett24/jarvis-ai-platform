@@ -5,6 +5,8 @@ from commands.static_commands import COMMANDS
 from commands.dynamic_commands import process_dynamic_command
 from commands.tool_manager import execute_tool
 from models.tool_request import ToolRequest
+from services.command_parser import parse_command
+from services.conversation_manager import is_follow_up, resolve_follow_up
 
 ALIASES = {
     "open chat gpt": "open chatgpt",
@@ -37,60 +39,25 @@ def process(command):
 
     command = ALIASES.get(command, command)
 
+    parsed = parse_command(command)
+
+    if is_follow_up(command):
+
+        follow_up = resolve_follow_up(command)
+
+        if follow_up:
+
+            execute_tool(follow_up)
+
+            return
+
+    if parsed:
+
+        execute_tool(parsed)
+
+        return
+
     if process_dynamic_command(command):
-        return
-    
-    if command.startswith("find "):
-
-        filename = command.replace("find ", "", 1).strip()
-
-        execute_tool(
-            ToolRequest(
-                tool="find_file",
-                arguments={
-                    "filename": filename
-                }
-            )
-        )
-
-        return
-    
-    if command.startswith("summarize "):
-
-        filename = command.replace(
-            "summarize ",
-            "",
-            1
-        ).strip()
-
-        execute_tool(
-            ToolRequest(
-                tool="summarize_file",
-                arguments={
-                    "filename": filename
-                }
-            )
-        )
-
-        return
-    
-    if command.startswith("search for "):
-
-        keyword = command.replace(
-            "search for ",
-            "",
-            1
-        ).strip()
-
-        execute_tool(
-            ToolRequest(
-                tool="search_project",
-                arguments={
-                    "keyword": keyword
-                }
-            )
-        )
-
         return
 
     if "workspace" in command:

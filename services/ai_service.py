@@ -67,6 +67,70 @@ def ask_ai(prompt):
 
     return answer
 
+def explain_code(file_info, depth=1,):
+    if depth == 1:
+
+        instruction = (
+            "Give a high-level overview of the file. "
+            "Focus on its overall purpose and responsibilities."
+        )
+
+    elif depth == 2:
+
+        instruction = (
+            "Assume the developer already understands the overview. "
+            "Now explain the important functions and how they work together."
+        )
+
+    elif depth == 3:
+
+        instruction = (
+            "Walk through how the code executes and how data flows through the file."
+        )
+
+    else:
+
+        instruction = (
+            "Discuss the architecture, design decisions, strengths, weaknesses, "
+            "and possible improvements."
+        )
+
+    response = chat(
+        model="llama3.1:8b",
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "You are an expert senior software engineer.\n\n"
+
+                    "Explain code clearly for the developer.\n"
+
+                    "Do not repeat the code.\n"
+
+                    f"{instruction}\n"
+
+                    "Identify important functions.\n"
+
+                    "Identify responsibilities.\n"
+
+                    "Mention any obvious architectural observations.\n"
+
+                    "Keep the explanation under 250 words."
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"Filename: {file_info['filename']}\n\n"
+
+                    f"{file_info['content']}"
+                ),
+            },
+        ],
+    )
+
+    return response["message"]["content"]
+
 def detect_tool(command):
 
     tool_descriptions = get_tool_descriptions()

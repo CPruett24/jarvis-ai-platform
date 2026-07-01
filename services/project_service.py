@@ -142,3 +142,40 @@ def search_project(keyword):
             results.append(path)
 
     return results
+
+def get_file_content(filename, max_lines=300):
+
+    matches = _find_matching_files(filename)
+
+    if not matches:
+        return None
+
+    file = matches[0]
+
+    try:
+
+        content = file.read_text(
+            encoding="utf-8",
+            errors="ignore"
+        )
+
+    except Exception:
+        return None
+
+    lines = content.splitlines()
+
+    truncated = False
+
+    if len(lines) > max_lines:
+
+        lines = lines[:max_lines]
+
+        truncated = True
+
+    return {
+        "path": file,
+        "filename": file.name,
+        "content": "\n".join(lines),
+        "line_count": len(content.splitlines()),
+        "truncated": truncated,
+    }

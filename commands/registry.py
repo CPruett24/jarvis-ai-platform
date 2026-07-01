@@ -20,6 +20,7 @@ from commands.actions import (
     find_file,
     summarize_file_action,
     search_project_action,
+    explain_file_action,
 )
 
 COMMAND_REGISTRY = {
@@ -125,6 +126,11 @@ COMMAND_REGISTRY = {
     "search_project": {
         "function": search_project_action,
         "description": "Searches the project for text."
+    },
+
+    "explain_file": {
+        "function": explain_file_action,
+        "description": "Explains the purpose of a source code file."
     },
 
 }
