@@ -12,6 +12,11 @@ import sys
 import subprocess
 from services.project_service import summarize_file, search_project
 from services.project_service import get_file_content
+from services.conversation_manager import set_pending_request
+from services.project_service import get_file_content, find_matching_files
+from models.tool_request import ToolRequest
+from services.ai_service import explain_code
+from services.conversation_manager import set_topic
 
 def remember_command(command):
     memory = command.replace("remember ", "", 1).strip()
@@ -344,19 +349,61 @@ def search_project_action(keyword=None):
 def explain_file_action(filename=None, depth=1,):
 
     if not filename:
-        speak("Please specify a filename.")
+
+        set_pending_request(
+            {
+                "request": ToolRequest(
+                    tool="explain_file",
+                    arguments={}
+                ),
+                "missing": "filename",
+                "candidates": None,
+            }
+        )
+
+        speak("Sure. Which file would you like me to explain?")
+
+        return
+
+    matches = find_matching_files(filename)
+
+    if len(matches) > 1:
+
+        set_pending_request(
+            {
+                "request": ToolRequest(
+                    tool="explain_file",
+                    arguments={}
+                ),
+                "missing": "filename",
+                "candidates": matches,
+            }
+        )
+
+        names = ", ".join(
+            path.name
+            for path in matches
+        )
+
+        speak(
+            f"I found multiple matches: {names}. "
+            "Which one did you mean?"
+        )
+
+        return
+
+    if not matches:
+
+        speak(
+            f"I couldn't find a file named {filename}. "
+            "Could you try another name?"
+        )
+
         return
 
     file_info = get_file_content(filename)
 
-    if file_info is None:
-        speak(f"I couldn't find {filename}.")
-        return
-
     speak(f"Analyzing {filename}.")
-
-    from services.ai_service import explain_code
-    from services.conversation_manager import set_topic
 
     explanation = explain_code(file_info, depth)
 

@@ -2,6 +2,13 @@ import re
 
 from models.tool_request import ToolRequest
 
+def normalize_filename(text):
+
+    return (
+        text.strip()
+        .strip(".")
+        .replace("the ", "")
+    )
 
 def parse_command(command):
 
@@ -17,7 +24,9 @@ def parse_command(command):
         return ToolRequest(
             tool="explain_file",
             arguments={
-                "filename": match.group(1).strip()
+                "filename": normalize_filename(
+                match.group(1)
+                )
             }
         )
 
@@ -31,7 +40,9 @@ def parse_command(command):
         return ToolRequest(
             tool="summarize_file",
             arguments={
-                "filename": match.group(1).strip()
+                "filename": normalize_filename(
+                match.group(1)
+                )
             }
         )
 
@@ -45,7 +56,9 @@ def parse_command(command):
         return ToolRequest(
             tool="find_file",
             arguments={
-                "filename": match.group(1).strip()
+                "filename": normalize_filename(
+                match.group(1)
+                )
             }
         )
 

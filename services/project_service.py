@@ -53,15 +53,40 @@ def _project_files():
 
 def _find_matching_files(filename):
 
+    query = filename.lower().strip()
+
+    if query.endswith(".py"):
+        query = query[:-3]
+
+    query = (
+        query
+        .replace("_", "")
+        .replace(" ", "")
+    )
+
     matches = []
 
     for path in _project_files():
 
-        if path.name.lower() == filename.lower():
+        stem = (
+            path.stem.lower()
+            .replace("_", "")
+            .replace(" ", "")
+        )
+
+        if query == stem:
+
+            matches.insert(0, path)
+
+        elif query in stem:
+
             matches.append(path)
 
-    return matches
+            return matches
 
+def find_matching_files(filename):
+
+    return _find_matching_files(filename)
 
 def summarize_file(filename):
 

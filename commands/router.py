@@ -7,6 +7,8 @@ from commands.tool_manager import execute_tool
 from models.tool_request import ToolRequest
 from services.command_parser import parse_command
 from services.conversation_manager import is_follow_up, resolve_follow_up
+from services.conversation_manager import has_pending_request, complete_pending_request
+
 
 ALIASES = {
     "open chat gpt": "open chatgpt",
@@ -38,6 +40,18 @@ def process(command):
     command = command.strip(".,!?")
 
     command = ALIASES.get(command, command)
+
+    if has_pending_request():
+
+        pending = complete_pending_request(
+            filename=command
+        )
+
+        if pending:
+
+            execute_tool(pending)
+
+            return
 
     parsed = parse_command(command)
 
