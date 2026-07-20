@@ -6,8 +6,14 @@ from commands.dynamic_commands import process_dynamic_command
 from commands.tool_manager import execute_tool
 from models.tool_request import ToolRequest
 from services.command_parser import parse_command
-from services.conversation_manager import is_follow_up, resolve_follow_up
-from services.conversation_manager import has_pending_request, complete_pending_request
+from services.conversation_manager import (
+    has_pending_request,
+    complete_pending_request,
+    is_follow_up,
+    resolve_follow_up,
+    is_topic_switch,
+    resolve_topic_switch,
+)
 
 
 ALIASES = {
@@ -50,6 +56,16 @@ def process(command):
         if pending:
 
             execute_tool(pending)
+
+            return
+        
+    if is_topic_switch(command):
+
+        switch = resolve_topic_switch(command)
+
+        if switch:
+
+            execute_tool(switch)
 
             return
 

@@ -75,14 +75,12 @@ def _find_matching_files(filename):
         )
 
         if query == stem:
-
             matches.insert(0, path)
 
         elif query in stem:
-
             matches.append(path)
 
-            return matches
+    return matches
 
 def find_matching_files(filename):
 

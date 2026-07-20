@@ -2,7 +2,6 @@ from enum import Enum
 from models.tool_request import ToolRequest
 
 FOLLOW_UP_PHRASES = {
-    "what about",
     "tell me more",
     "explain that",
     "explain it",
@@ -10,6 +9,15 @@ FOLLOW_UP_PHRASES = {
     "how so",
     "go on",
     "continue",
+}
+
+SWITCH_TOPIC_PHRASES = {
+    "what about",
+    "how about",
+    "what's in",
+    "now explain",
+    "next explain",
+    "next",
 }
 
 class ConversationMode(Enum):
@@ -149,3 +157,37 @@ def complete_pending_request(filename=None):
     clear_pending_request()
 
     return request
+
+def is_topic_switch(command):
+
+    command = command.lower().strip()
+
+    return any(
+        command.startswith(phrase)
+        for phrase in SWITCH_TOPIC_PHRASES
+    )
+
+def resolve_topic_switch(command):
+
+    from models.tool_request import ToolRequest
+
+    text = command.lower().strip()
+
+    for phrase in SWITCH_TOPIC_PHRASES:
+
+        if text.startswith(phrase):
+
+            filename = text[len(phrase):].strip()
+
+            if not filename:
+                return None
+
+            return ToolRequest(
+                tool="explain_file",
+                arguments={
+                    "filename": filename,
+                    "depth": 1,
+                }
+            )
+
+    return None
