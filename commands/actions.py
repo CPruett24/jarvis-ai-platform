@@ -15,7 +15,6 @@ from services.project_service import get_file_content
 from services.conversation_manager import set_pending_request
 from services.project_service import get_file_content, find_matching_files
 from models.tool_request import ToolRequest
-from services.ai_service import explain_code
 from services.conversation_manager import set_topic
 
 def remember_command(command):
@@ -404,6 +403,8 @@ def explain_file_action(filename=None, depth=1,):
     file_info = get_file_content(filename)
 
     speak(f"Analyzing {filename}.")
+
+    from services.ai_service import explain_code
 
     explanation = explain_code(file_info, depth)
 
