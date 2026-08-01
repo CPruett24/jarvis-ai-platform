@@ -1,254 +1,374 @@
 # JARVIS AI Platform
 
-A local-first AI assistant and agent platform inspired by JARVIS from Iron Man.
+> **JARVIS (Just A Rather Very Intelligent System)** is a local-first conversational AI platform inspired by Iron Man's JARVIS. Built with Python and powered by local language models, JARVIS is designed to evolve beyond a voice assistant into an intelligent AI companion capable of conversation, reasoning, software engineering assistance, automation, and personal productivity.
 
-JARVIS combines local AI, voice interaction, persistent memory, automation, workspaces, and agent-oriented architecture into an extensible personal AI platform built with Python.
+---
 
-The long-term goal is to evolve JARVIS from a personal voice assistant into a business-capable AI operating layer capable of managing projects, workflows, automation, analytics, and autonomous agents.
+# Vision
 
+The goal of JARVIS is not simply to answer questions or execute commands.
 
-## Features
+The goal is to create an AI that feels like collaborating with an intelligent assistant—one that remembers context, understands ongoing conversations, reasons through problems, and can take meaningful action when appropriate.
 
-### Voice Interaction
+JARVIS is built around four long-term capabilities:
+
+* **Conversation** – Natural, context-aware dialogue that feels human.
+* **Reasoning** – Intelligent problem solving and software engineering assistance.
+* **Memory** – Long-term and conversational memory that reduces repetition.
+* **Action** – The ability to automate tasks, control tools, and assist with real work.
+
+---
+
+# Current Capabilities
+
+## Conversation
 
 * Wake word activation ("Jarvis")
-* Session-based conversations
-* Faster-Whisper speech recognition
-* Text-to-speech responses
-* Standby and session management
+* Session-based voice conversations
+* Natural follow-up questions
+* Topic switching during conversations
+* Clarification questions for incomplete requests
+* Context-aware conversations
+* Persistent conversational memory
 
-### AI Intelligence
+Example:
 
-* Local LLM powered by Ollama
-* Llama 3.1 integration
-* Conversational context memory
-* Personalized responses
+```text
+You:
+Explain router.py
 
-### Memory System
+JARVIS:
+(Explains the file.)
 
-* SQLite-backed persistent memory
-* Remember information
-* Recall stored memories
-* Search memories by topic
-* Forget stored memories
+You:
+Tell me more.
 
-### Natural Language Commands
+JARVIS:
+(Continues discussing the same file.)
 
-JARVIS can execute commands through natural language.
+You:
+What about tool_manager.py?
+
+JARVIS:
+(Switches topics naturally and begins explaining tool_manager.py.)
+```
+
+---
+
+## Developer Assistant
+
+JARVIS can actively assist with software development.
+
+Current capabilities include:
+
+* Project-wide keyword search
+* File search
+* File summaries
+* AI-powered code explanations
+* Context-aware code discussions
+* Conversational navigation through source code
 
 Examples:
 
-* "Can you open GitHub for me?"
-* "Launch Visual Studio Code."
-* "Open ChatGPT."
+* "Explain router.py"
+* "Summarize project_service.py"
+* "Search for execute_tool"
+* "Find conversation_manager.py"
 
-AI intent recognition determines the requested action and routes it to the correct command handler.
+The long-term vision is for JARVIS to understand entire software projects and act as an engineering partner rather than simply generating code.
 
-## Example Conversation
+---
 
-User:
-Jarvis
+## Memory System
 
-JARVIS:
-Yes, Chandler?
+JARVIS maintains persistent memory using SQLite.
 
-User:
-Remember that my project deadline is Friday.
+Current features include:
 
-JARVIS:
-Got it stored.
+* Remember information
+* Recall stored memories
+* Search memories
+* Forget memories
+* Memory-aware conversations
 
-User:
-What do you remember about my project?
+This allows conversations to become increasingly personalized over time.
 
-JARVIS:
-You told me your project deadline is Friday.
+---
 
-User:
-Can you open GitHub for me?
+## Voice Interface
 
-JARVIS:
-Opening GitHub.
+* Faster-Whisper speech recognition
+* Wake word detection
+* Session-based conversations
+* Local text-to-speech
+* Hands-free interaction
 
-## Technology Stack
+---
 
-### AI
+## AI Intelligence
+
+Powered entirely by local AI.
+
+Current stack:
 
 * Ollama
 * Llama 3.1
 
-### Speech
+Current capabilities:
+
+* General conversation
+* Context-aware responses
+* Developer assistance
+* Code explanations
+* Conversational context awareness
+
+---
+
+## Workspace Management
+
+Quickly switch development environments.
+
+Current workspaces include:
+
+* Coding
+* AWS
+* School
+
+Designed to expand into complete workspace automation.
+
+---
+
+# Technology Stack
+
+## AI
+
+* Ollama
+* Llama 3.1
+
+## Speech
 
 * Faster-Whisper
 * PyAudio
 * pyttsx3
 
-### Data
+## Data
 
 * SQLite
 * SQLAlchemy
 
-### Development
+## Development
 
 * Python 3.12
 * Git
 * GitHub
-* VS Code
+* Visual Studio Code
 
-## Current Architecture
+---
 
+# Project Architecture
+
+JARVIS follows a modular, service-oriented architecture.
+
+```
 JARVIS-AI/
 
-├── commands/
+commands/
+│
+├── actions.py
+├── dynamic_commands.py
+├── registry.py
+├── router.py
+├── static_commands.py
+└── tool_manager.py
 
-│   ├── actions.py
+services/
+│
+├── ai_service.py
+├── code_assistant.py
+├── command_parser.py
+├── conversation_db.py
+├── conversation_manager.py
+├── conversation_service.py
+├── listener.py
+├── memory_service.py
+├── project_service.py
+├── speaker.py
+├── status_service.py
+├── transcription_service.py
+└── workspace_service.py
 
-│   └── router.py
+models/
+│
+├── conversation.py
+├── memory.py
+├── session.py
+└── tool_request.py
 
-├── models/
+data/
+│
+├── jarvis.db
+├── status.json
+└── workspaces.json
 
-│   └── memory.py
+tests/
+│
+└── test_intent.py
 
-├── services/
+docs/
+│
+├── JARVIS_MASTER_PLAN.md
+└── ROADMAP.md
 
-│   ├── ai_service.py
+main.py
+dashboard.py
+```
 
-│   ├── conversation_service.py
+The architecture emphasizes:
 
-│   ├── listener.py
+* Separation of concerns
+* Modular services
+* Extensibility
+* Maintainability
+* Reusable components
 
-│   ├── memory_service.py
+---
 
-│   ├── speaker.py
+# Current Development Status
 
-│   └── transcription_service.py
+## Foundation ✅
 
-└── main.py
-
-## Current Capabilities
-
-* Voice-controlled assistant
-* Local AI responses
+* Voice interaction
+* Wake word detection
 * Persistent memory
-* Memory-aware conversations
-* Conversational context
-* AI intent recognition
-* Natural language command execution
+* Local AI
+* Dashboard
+* Workspace management
+
+## Conversation ✅
+
+* Command parser
+* Follow-up detection
+* Clarification handling
+* Pending requests
+* Topic switching
+* Context-aware AI
+
+## Developer Assistant ✅
+
+* Project search
+* File search
+* File summaries
+* Code explanations
+* Conversational code navigation
+
+---
 
 # Roadmap
 
-## Phase 1 — Foundation (Current)
+## Phase 1 — Foundation ✅
 
-### Completed
+Completed:
 
 * Wake word detection
-* Faster-Whisper speech recognition
-* Ollama integration
-* Text-to-speech responses
-* Conversational context
-* SQLite memory system
-* Intent recognition
-* Dynamic workspaces
-* Streamlit dashboard
-* Windows startup integration
-* Live status system
-
-### Planned
-
-* Persistent conversation database
-* Interruptible speech
-* Dashboard improvements
-* Enhanced memory retrieval
+* Faster-Whisper integration
+* Local LLM integration
+* Persistent memory
+* Dashboard
+* Workspace management
+* Context-aware conversations
 
 ---
 
-## Phase 2 — Platform
+## Phase 2 — Conversational Intelligence 🚧
 
-### Planned
+Current focus:
 
-* Tool framework
-* Browser automation
+* AI code assistant
+* Engineering discussions
+* Topic history
+* Improved reasoning
+* Code-aware conversations
+
+---
+
+## Phase 3 — Software Engineering Assistant
+
+Planned:
+
+* Multi-file understanding
+* Execution tracing
+* Code review
+* Architectural analysis
+* Refactoring suggestions
+* Documentation generation
+* Project planning
+
+Example:
+
+> "How does main.py eventually call execute_tool()?"
+
+---
+
+## Phase 4 — Intelligent Automation
+
+Planned:
+
 * Desktop automation
-* Workflow engine
-* Task management system
-* Plugin architecture
+* Browser automation
+* Git integration
+* Build automation
+* Testing automation
+* Plugin framework
 
 ---
 
-## Phase 3 — Agent System
+## Phase 5 — Personal AI Assistant
 
-### Planned
+Planned:
 
-* Planner agent
-* Executor agent
-* Goal tracking
-* Multi-step task execution
-* Tool orchestration
-* Long-running task support
-
----
-
-## Phase 4 — Business Operations Layer
-
-### Planned
-
-* Email integration
-* GitHub integration
 * Calendar integration
-* Analytics integrations
-* Customer support workflows
-* Revenue and KPI reporting
-
-Example:
-
-"How is the business doing this week?"
-
-JARVIS can summarize:
-
-* Revenue
-* User growth
-* Support requests
-* Development progress
-* Marketing performance
-* Recommended actions
+* Email drafting
+* Task management
+* Daily briefings
+* Smart reminders
+* Productivity assistance
 
 ---
 
-## Phase 5 — AI Operating Layer
+## Phase 6 — AI Operating Layer
 
-### Planned
+Long-term vision:
 
-* Multi-agent architecture
-* Developer agents
-* Research agents
-* Marketing agents
-* Autonomous workflows
-* Continuous monitoring
-* Business intelligence and recommendations
-
-Example:
-
-"Launch the new feature."
-
-JARVIS could:
-
-1. Create development tasks
-2. Implement changes
-3. Run tests
-4. Deploy updates
-5. Monitor results
-6. Report outcomes
+JARVIS becomes a conversational operating layer capable of managing projects, workflows, automation, and intelligent decision support while remaining local-first and user-controlled.
 
 ---
 
-## Vision
+# Design Philosophy
 
-JARVIS is being built as a local-first AI platform that evolves from a personal assistant into a system capable of helping manage applications, projects, workflows, customers, analytics, and businesses.
+Every implementation should strengthen at least one of these pillars:
 
-## Author
+* **Conversation** – Make interactions feel more natural.
+* **Reasoning** – Improve understanding and problem solving.
+* **Memory** – Reduce repetition and maintain context.
+* **Action** – Help users accomplish real tasks.
 
-Chandler Pruett
+Features are only added when they move JARVIS closer to its long-term vision rather than simply increasing the feature list.
 
-Computer Science Student
+---
 
-Built as a personal project to explore AI assistants, local LLMs, voice interfaces, and software architecture.
+# Documentation
+
+Project documentation is maintained in the `docs` directory.
+
+* **JARVIS_MASTER_PLAN.md** — Long-term vision, architecture, engineering principles, and roadmap.
+* **ROADMAP.md** — Development milestones and current priorities.
+
+---
+
+# Author
+
+**Chandler Pruett**
+
+Computer Science student and software developer building JARVIS as a long-term exploration of conversational AI, local language models, software architecture, and intelligent automation.
+
+The project is developed incrementally with an emphasis on thoughtful architecture, maintainability, and creating an AI assistant that feels natural to interact with rather than simply responding to commands.
