@@ -5,6 +5,8 @@ from services.conversation_service import add_message, get_history
 from services.memory_service import get_memory_context
 from services.status_service import update_status
 from commands.tool_manager import get_tool_descriptions
+from services.conversation_manager import get_topic
+from services.project_service import get_file_content
 
 def ask_ai(prompt):
 
@@ -16,9 +18,42 @@ def ask_ai(prompt):
 
     memory_context = get_memory_context()
 
+    topic = get_topic()
+
+    conversation_context = ""
+
+    if topic:
+
+        if topic["type"] == "file":
+
+            conversation_context = (
+                f"\n\nCurrent conversation topic:\n"
+                f"You are discussing the file "
+                f"{topic['filename']}.\n"
+                f"The user may ask follow-up questions "
+                f"about this file without naming it again."
+            )
+
     print("\nMEMORY CONTEXT:")
     print(memory_context)
     print()
+
+    code_context = ""
+
+    if topic:
+
+        if topic["type"] == "file":
+
+            file_info = get_file_content(
+                topic["filename"]
+            )
+
+            if file_info:
+
+                code_context = (
+                    "\n\nCurrent file contents:\n\n"
+                    f"{file_info['content']}"
+                )
 
     messages = [
         {
@@ -47,6 +82,10 @@ def ask_ai(prompt):
                 "\n\nThe following memories are facts about the person you are speaking to:\n\n"
 
                 f"{memory_context}"
+
+                f"{conversation_context}"
+
+                f"{code_context}"
             ),
         }
     ]
