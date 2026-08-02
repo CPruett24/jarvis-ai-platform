@@ -14,6 +14,10 @@ from services.conversation_manager import (
     is_topic_switch,
     resolve_topic_switch,
 )
+from services.code_intent import is_code_question
+from services.conversation_manager import get_topic
+from services.project_service import get_file_content
+from services.code_assistant import answer_question
 
 
 ALIASES = {
@@ -70,6 +74,31 @@ def process(command):
             return
 
     parsed = parse_command(command)
+
+    #
+    # Conversational Code Reasoning
+    #
+
+    topic = get_topic()
+
+    if topic and is_code_question(command):
+
+        file_info = get_file_content(
+            topic["filename"]
+        )
+
+        if file_info:
+
+            print("[Router] Code discussion detected.")
+
+            response = answer_question(
+                command,
+                file_info,
+            )
+
+            speak(response)
+
+            return
 
     if is_follow_up(command):
 
