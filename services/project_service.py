@@ -5,6 +5,7 @@ EXCLUDED_DIRECTORIES = {
     ".git",
     ".venv",
     "__pycache__",
+    ".pytest_cache",
     "venv",
     ".idea",
     ".vscode",
@@ -21,7 +22,7 @@ SUPPORTED_EXTENSIONS = {
 
 
 def _project_root():
-    return Path.cwd()
+    return Path(__file__).resolve().parent.parent
 
 
 def _is_project_file(path: Path) -> bool:
@@ -202,3 +203,75 @@ def get_file_content(filename, max_lines=300):
         "line_count": len(content.splitlines()),
         "truncated": truncated,
     }
+
+def get_project_state():
+    """
+    Return a structured snapshot of the current project.
+
+    This represents the actual files that currently exist,
+    rather than the files described in project documentation.
+    """
+
+    root = _project_root()
+
+    files = _project_files()
+
+    state = {
+        "project_name": root.name,
+        "project_root": str(root),
+        "file_count": len(files),
+        "directories": {},
+    }
+
+    for path in sorted(files):
+
+        relative_path = path.relative_to(root)
+
+        parts = relative_path.parts
+
+        if len(parts) == 1:
+            directory = "root"
+        else:
+            directory = parts[0]
+
+        state["directories"].setdefault(
+            directory,
+            [],
+        )
+
+        state["directories"][directory].append(
+            str(relative_path)
+        )
+
+    return state
+
+def format_project_state(state):
+    """
+    Convert project state into concise text suitable for AI context.
+    """
+
+    lines = [
+        f"Project: {state['project_name']}",
+        f"File count: {state['file_count']}",
+        "",
+        "Project files:",
+    ]
+
+    for directory, files in state["directories"].items():
+
+        lines.append(
+            f"\n[{directory}]"
+        )
+
+        for file in files:
+
+            normalized_file = file.replace(
+                "\\",
+                "/",
+            )
+
+            lines.append(
+                f"- {normalized_file}"
+            )
+
+    return "\n".join(lines)

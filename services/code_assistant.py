@@ -1,13 +1,13 @@
 from ollama import chat
 
 from services.project_context import (
-    get_relevant_project_context,
+    get_full_project_context,
 )
 
 
 def answer_question(question, file_info):
 
-    project_context = get_relevant_project_context(
+    project_context = get_full_project_context(
         question
     )
 
@@ -24,9 +24,18 @@ def answer_question(question, file_info):
 
                     "The supplied source code is the current discussion topic.\n\n"
 
-                    "The supplied project context contains relevant "
-                    "documentation about JARVIS's architecture, goals, "
-                    "roadmap, and engineering principles.\n\n"
+                    "The supplied project context contains both "
+                    "relevant project documentation and the actual "
+                    "current project state.\n\n"
+
+                    "Project documentation describes intended goals, "
+                    "architecture, principles, and roadmap.\n\n"
+
+                    "Current project state describes what actually "
+                    "exists in the codebase right now.\n\n"
+
+                    "Always distinguish between planned functionality "
+                    "and functionality that already exists.\n\n"
 
                     "Use the project context to understand why the "
                     "codebase is designed the way it is.\n\n"
@@ -54,9 +63,10 @@ def answer_question(question, file_info):
                     "with the project's documented engineering principles "
                     "and long-term direction.\n\n"
 
-                    "Do not recommend implementing something that already "
-                    "exists without first checking the supplied source "
-                    "code and project context.\n\n"
+                    "Do not recommend creating a file, service, feature, "
+                    "or capability that is already present in the current "
+                    "project state unless you are specifically recommending "
+                    "replacing or redesigning it.\n\n"
 
                     "Assume the user is the author of this project."
                 ),

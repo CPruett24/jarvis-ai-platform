@@ -1,6 +1,10 @@
 from pathlib import Path
 import re
 
+from services.project_service import (
+    get_project_state,
+    format_project_state,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DOCS_DIR = PROJECT_ROOT / "docs"
@@ -369,4 +373,42 @@ def get_project_context():
     return get_relevant_project_context(
         "JARVIS architecture roadmap vision",
         max_sections=10,
+    )
+
+def get_full_project_context(question):
+    """
+    Build the complete reasoning context for a project-aware question.
+
+    This combines relevant project documentation with the actual
+    current project state.
+    """
+
+    documentation = get_relevant_project_context(
+        question
+    )
+
+    state = get_project_state()
+
+    project_state = format_project_state(
+        state
+    )
+
+    context_parts = []
+
+    if documentation:
+
+        context_parts.append(
+            "===== RELEVANT PROJECT DOCUMENTATION =====\n"
+            + documentation
+        )
+
+    if project_state:
+
+        context_parts.append(
+            "===== CURRENT PROJECT STATE =====\n"
+            + project_state
+        )
+
+    return "\n\n".join(
+        context_parts
     )
