@@ -1,17 +1,14 @@
 from ollama import chat
-from services.prompt_builder import build_code_question_prompt
+
+from services.project_context import (
+    get_relevant_project_context,
+)
 
 
-def answer_question(
-    question,
-    file_info,
-    conversation_context=None,
-):
+def answer_question(question, file_info):
 
-    prompt = build_code_question_prompt(
-        question,
-        file_info,
-        conversation_context,
+    project_context = get_relevant_project_context(
+        question
     )
 
     response = chat(
@@ -22,40 +19,63 @@ def answer_question(
                 "content": (
                     "You are JARVIS, an experienced senior software engineer.\n\n"
 
-                    "You are helping the user understand their own codebase.\n\n"
+                    "You are helping the user understand and improve "
+                    "their own codebase.\n\n"
 
                     "The supplied source code is the current discussion topic.\n\n"
 
-                    "Use the recent conversation and current topic to "
-                    "understand what the user is referring to.\n\n"
+                    "The supplied project context contains relevant "
+                    "documentation about JARVIS's architecture, goals, "
+                    "roadmap, and engineering principles.\n\n"
 
-                    "If the user asks a follow-up question, answer it in "
-                    "the context of the previous discussion.\n\n"
+                    "Use the project context to understand why the "
+                    "codebase is designed the way it is.\n\n"
 
-                    "Answer the user's specific question directly.\n\n"
+                    "Do not assume that documentation describes code "
+                    "that does not currently exist.\n\n"
 
-                    "Do not summarize the entire file unless the user "
-                    "explicitly asks for a summary.\n\n"
+                    "The current source code is authoritative for what "
+                    "currently exists.\n\n"
+
+                    "Answer ONLY the user's question.\n\n"
+
+                    "Do not summarize the file unless the user explicitly "
+                    "asks for a summary.\n\n"
 
                     "Reference specific functions, variables, imports, "
                     "and control flow whenever appropriate.\n\n"
 
-                    "If you suggest improvements, explain why they would "
-                    "improve the design.\n\n"
+                    "When suggesting changes, distinguish between:\n"
+                    "1. What exists today.\n"
+                    "2. What the project plans to build.\n"
+                    "3. What you recommend changing.\n\n"
 
-                    "Do not assume architectural patterns that are not "
-                    "visible in the supplied code.\n\n"
+                    "When discussing architecture, align recommendations "
+                    "with the project's documented engineering principles "
+                    "and long-term direction.\n\n"
 
-                    "If the supplied code does not provide enough "
-                    "information to answer confidently, say so instead "
-                    "of guessing.\n\n"
+                    "Do not recommend implementing something that already "
+                    "exists without first checking the supplied source "
+                    "code and project context.\n\n"
 
-                    "Speak directly to the user."
+                    "Assume the user is the author of this project."
                 ),
             },
             {
                 "role": "user",
-                "content": prompt,
+                "content": (
+                    f"Relevant Project Context:\n\n"
+                    f"{project_context}\n\n"
+
+                    f"Current File: "
+                    f"{file_info['filename']}\n\n"
+
+                    f"Question:\n"
+                    f"{question}\n\n"
+
+                    f"Source Code:\n\n"
+                    f"{file_info['content']}"
+                ),
             },
         ],
     )

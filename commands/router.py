@@ -106,22 +106,9 @@ def process(command):
 
             print("[Router] Code discussion detected.")
 
-            record_turn(
-                "user",
-                command,
-            )
-
-            context = get_conversation_context()
-
             response = answer_question(
                 command,
                 file_info,
-                context,
-            )
-
-            record_turn(
-                "assistant",
-                response,
             )
 
             speak(response)
