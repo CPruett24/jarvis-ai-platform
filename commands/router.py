@@ -21,6 +21,7 @@ from services.code_intent import (
 from services.conversation_manager import get_topic, get_conversation_context, record_turn
 from services.project_service import get_file_content
 from services.code_assistant import answer_question
+from services.intent_resolver import resolve_intent
 
 
 ALIASES = {
@@ -53,6 +54,14 @@ def process(command):
     command = command.strip(".,!?")
 
     command = ALIASES.get(command, command)
+
+    intent = resolve_intent(command)
+
+    print(
+        f"[Router] Intent: "
+        f"{intent.type} "
+        f"(confidence={intent.confidence:.2f})"
+    )
 
     if has_pending_request():
 
