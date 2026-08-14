@@ -14,8 +14,11 @@ from services.conversation_manager import (
     is_topic_switch,
     resolve_topic_switch,
 )
-from services.code_intent import is_code_question
-from services.conversation_manager import get_topic
+from services.code_intent import (
+    is_code_question,
+    is_contextual_code_question,
+)
+from services.conversation_manager import get_topic, get_conversation_context, record_turn
 from services.project_service import get_file_content
 from services.code_assistant import answer_question
 
@@ -81,7 +84,10 @@ def process(command):
 
     topic = get_topic()
 
-    if topic and is_code_question(command):
+    if topic and (
+        is_code_question(command)
+        or is_contextual_code_question(command)
+    ):
 
         file_info = get_file_content(
             topic["filename"]
@@ -91,9 +97,22 @@ def process(command):
 
             print("[Router] Code discussion detected.")
 
+            record_turn(
+                "user",
+                command,
+            )
+
+            context = get_conversation_context()
+
             response = answer_question(
                 command,
                 file_info,
+                context,
+            )
+
+            record_turn(
+                "assistant",
+                response,
             )
 
             speak(response)

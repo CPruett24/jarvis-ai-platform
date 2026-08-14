@@ -15,7 +15,8 @@ from services.project_service import get_file_content
 from services.conversation_manager import set_pending_request
 from services.project_service import get_file_content, find_matching_files
 from models.tool_request import ToolRequest
-from services.conversation_manager import set_topic
+from services.conversation_manager import set_topic, record_turn, clear_context
+
 
 def remember_command(command):
     memory = command.replace("remember ", "", 1).strip()
@@ -408,12 +409,19 @@ def explain_file_action(filename=None, depth=1,):
 
     explanation = explain_code(file_info, depth)
 
+    clear_context()
+
     set_topic(
         {
             "type": "file",
             "filename": filename,
             "depth": depth,
         }
+    )
+
+    record_turn(
+        "user",
+        f"Explain {filename}",
     )
 
     print("\n===== CODE EXPLANATION =====\n")

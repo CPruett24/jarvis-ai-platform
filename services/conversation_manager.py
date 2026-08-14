@@ -1,6 +1,7 @@
 from enum import Enum
 from models.tool_request import ToolRequest
 
+
 FOLLOW_UP_PHRASES = {
     "tell me more",
     "explain that",
@@ -20,6 +21,7 @@ SWITCH_TOPIC_PHRASES = {
     "next",
 }
 
+
 class ConversationMode(Enum):
     CHAT = "chat"
     TOOL = "tool"
@@ -28,6 +30,11 @@ class ConversationMode(Enum):
 
 _current_topic = None
 _pending_request = None
+
+_recent_turns = []
+
+MAX_CONTEXT_TURNS = 6
+
 
 def set_pending_request(request):
 
@@ -47,9 +54,11 @@ def clear_pending_request():
 
     _pending_request = None
 
+
 def has_pending_request():
 
     return _pending_request is not None
+
 
 def set_topic(topic):
 
@@ -62,22 +71,62 @@ def set_topic(topic):
 
 
 def get_topic():
+
     return _current_topic
+
+
+def clear_topic():
+
+    global _current_topic
+
+    _current_topic = None
+
+
+def record_turn(role, content):
+
+    global _recent_turns
+
+    _recent_turns.append(
+        {
+            "role": role,
+            "content": content,
+        }
+    )
+
+    if len(_recent_turns) > MAX_CONTEXT_TURNS:
+        _recent_turns = _recent_turns[-MAX_CONTEXT_TURNS:]
+
+
+def get_recent_turns():
+
+    return list(_recent_turns)
+
+
+def clear_context():
+
+    global _recent_turns
+
+    _recent_turns = []
+
+
+def get_conversation_context():
+
+    topic = get_topic()
+
+    return {
+        "topic": topic.copy() if topic else None,
+        "recent_turns": get_recent_turns(),
+    }
+
 
 def is_follow_up(command):
 
     command = command.lower().strip()
 
-    result = any(
+    return any(
         command.startswith(phrase)
         for phrase in FOLLOW_UP_PHRASES
     )
-
-    return result
-
-def clear_topic():
-    global _current_topic
-    _current_topic = None
 
 
 def determine_mode(command, tool_request):
@@ -87,13 +136,13 @@ def determine_mode(command, tool_request):
 
     return ConversationMode.CHAT
 
+
 def debug_topic():
 
     print("\n===== CURRENT TOPIC =====")
-
     print(_current_topic)
-
     print("=========================\n")
+
 
 def resolve_follow_up(command):
 
@@ -117,6 +166,7 @@ def resolve_follow_up(command):
         )
 
     return None
+
 
 def complete_pending_request(filename=None):
 
@@ -158,6 +208,7 @@ def complete_pending_request(filename=None):
 
     return request
 
+
 def is_topic_switch(command):
 
     command = command.lower().strip()
@@ -167,9 +218,8 @@ def is_topic_switch(command):
         for phrase in SWITCH_TOPIC_PHRASES
     )
 
-def resolve_topic_switch(command):
 
-    from models.tool_request import ToolRequest
+def resolve_topic_switch(command):
 
     text = command.lower().strip()
 
