@@ -198,6 +198,161 @@ def _extract_calls(function_node):
 
     return calls
 
+def _is_standard_library(module_name):
+    """
+    Return True when a module belongs to Python's
+    standard library.
+    """
+
+    if not module_name:
+        return False
+
+    top_level = module_name.split(
+        ".",
+        1,
+    )[0]
+
+    standard_library = {
+        "abc",
+        "argparse",
+        "ast",
+        "asyncio",
+        "builtins",
+        "collections",
+        "contextlib",
+        "csv",
+        "dataclasses",
+        "datetime",
+        "enum",
+        "functools",
+        "glob",
+        "hashlib",
+        "inspect",
+        "io",
+        "itertools",
+        "json",
+        "logging",
+        "math",
+        "os",
+        "pathlib",
+        "re",
+        "shutil",
+        "sqlite3",
+        "subprocess",
+        "sys",
+        "tempfile",
+        "threading",
+        "time",
+        "traceback",
+        "typing",
+        "unittest",
+        "urllib",
+        "uuid",
+        "warnings",
+        "weakref",
+    }
+
+    return top_level in standard_library
+
+def _get_imported_modules(
+    file_path,
+):
+    """
+    Return a mapping of local names to imported modules.
+
+    Example:
+
+        from ollama import chat
+
+    becomes:
+
+        {
+            "chat": "ollama"
+        }
+    """
+
+    path = Path(
+        file_path
+    )
+
+    try:
+
+        content = path.read_text(
+            encoding="utf-8",
+            errors="ignore",
+        )
+
+    except Exception:
+        return {}
+
+    try:
+
+        tree = ast.parse(
+            content
+        )
+
+    except SyntaxError:
+        return {}
+
+    imports = {}
+
+    for node in ast.walk(tree):
+
+        if isinstance(
+            node,
+            ast.Import,
+        ):
+
+            for alias in node.names:
+
+                local_name = (
+                    alias.asname
+                    or alias.name.split(
+                        ".",
+                        1,
+                    )[0]
+                )
+
+                imports[
+                    local_name
+                ] = alias.name
+
+        elif isinstance(
+            node,
+            ast.ImportFrom,
+        ):
+
+            if node.module is None:
+                continue
+
+            for alias in node.names:
+
+                local_name = (
+                    alias.asname
+                    or alias.name
+                )
+
+                imports[
+                    local_name
+                ] = node.module
+
+    return imports
+
+def _classify_imported_module(
+    module_name,
+):
+    """
+    Classify an imported module.
+    """
+
+    if _is_standard_library(
+        module_name
+    ):
+
+        return "standard_library"
+
+    return "third_party"
+
 def _is_builtin(name):
     """
     Return True when a call refers to a Python builtin.
@@ -209,19 +364,49 @@ def _is_builtin(name):
     )
 
 
-def _classify_unresolved_call(call):
+def _classify_unresolved_call(
+    call,
+    imported_modules=None,
+):
     """
     Classify a call that could not be resolved
     to a project function.
     """
 
+    if imported_modules is None:
+        imported_modules = {}
+
     name = call["name"]
 
-    if call["type"] == "name" and _is_builtin(name):
+    if (
+        call["type"] == "name"
+        and _is_builtin(name)
+    ):
 
         return {
             "name": name,
             "type": "builtin",
+        }
+
+    root_name = name.split(
+        ".",
+        1,
+    )[0]
+
+    module_name = imported_modules.get(
+        root_name
+    )
+
+    if module_name:
+
+        category = _classify_imported_module(
+            module_name
+        )
+
+        return {
+            "name": name,
+            "type": category,
+            "module": module_name,
         }
 
     if call["type"] == "attribute":
@@ -485,6 +670,10 @@ def get_function_calls(
     if file.suffix.lower() != ".py":
         return None
 
+    imported_modules = _get_imported_modules(
+        file
+    )
+
     tree = _get_source_tree(
         file
     )
@@ -535,7 +724,8 @@ def get_function_calls(
 
             unresolved_calls.append(
                 _classify_unresolved_call(
-                    call
+                    call,
+                    imported_modules,
                 )
             )
 
@@ -691,7 +881,15 @@ def format_execution_trace(
 
             if call_type == "builtin":
 
-                category = "BUILTIN"
+                category = "PYTHON_BUILTIN"
+
+            elif call_type == "standard_library":
+
+                category = "STANDARD_LIBRARY"
+
+            elif call_type == "third_party":
+
+                category = "THIRD_PARTY"
 
             elif call_type == "external_or_runtime":
 

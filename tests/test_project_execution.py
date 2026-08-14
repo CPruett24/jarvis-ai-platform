@@ -288,4 +288,68 @@ def test_formatted_trace_contains_categories():
     )
 
     assert "[PROJECT]" in formatted
-    assert "[BUILTIN]" in formatted
+    assert "[PYTHON_BUILTIN]" in formatted
+
+def test_standard_library_import_is_detected():
+
+    from pathlib import Path
+
+    project_file = (
+        Path(__file__).resolve().parents[1]
+        / "services"
+        / "project_service.py"
+    )
+
+    from services.project_execution import (
+        _get_imported_modules,
+    )
+
+    imported_modules = _get_imported_modules(
+        project_file
+    )
+
+    assert imported_modules.get(
+        "Path"
+    ) == "pathlib"
+
+
+def test_third_party_import_is_classified():
+
+    result = get_function_calls(
+        "ai_service.py",
+        "ask_ai",
+    )
+
+    assert result is not None
+
+    third_party_calls = [
+        call
+        for call in result["unresolved_calls"]
+        if call["type"] == "third_party"
+    ]
+
+    assert any(
+        call["module"] == "ollama"
+        for call in third_party_calls
+    )
+
+
+def test_builtin_classification_still_works():
+
+    result = get_function_calls(
+        "router.py",
+        "process",
+    )
+
+    assert result is not None
+
+    builtin_calls = [
+        call
+        for call in result["unresolved_calls"]
+        if call["type"] == "builtin"
+    ]
+
+    assert any(
+        call["name"] == "print"
+        for call in builtin_calls
+    )
