@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from services.project_service import (
     get_project_state,
     format_project_state,
@@ -7,6 +9,9 @@ from services.project_context import (
     get_full_project_context,
 )
 
+from services.project_service import (
+    classify_project_file,
+)
 
 def test_project_state_contains_project_name():
 
@@ -86,3 +91,55 @@ def test_full_project_context_knows_intent_resolver_exists():
     )
 
     assert "services/intent_resolver.py" in context
+
+def test_application_file_classification():
+
+    state = get_project_state()
+
+    root = Path(
+        state["project_root"]
+    )
+
+    router = root / "commands" / "router.py"
+
+    assert classify_project_file(
+        router
+    ) == "application"
+
+
+def test_test_file_classification():
+
+    state = get_project_state()
+
+    root = Path(
+        state["project_root"]
+    )
+
+    test_file = (
+        root
+        / "tests"
+        / "test_intent.py"
+    )
+
+    assert classify_project_file(
+        test_file
+    ) == "test"
+
+
+def test_documentation_classification():
+
+    state = get_project_state()
+
+    root = Path(
+        state["project_root"]
+    )
+
+    roadmap = (
+        root
+        / "docs"
+        / "ROADMAP.md"
+    )
+
+    assert classify_project_file(
+        roadmap
+    ) == "documentation"

@@ -1,5 +1,5 @@
 {
-    "status": "speaking",
+    "status": "listening",
     "last_command": "should we create an intent resolver?",
-    "last_response": "Based on the project documentation, it appears that an intent resolver is already implemented and in use. The `resolve_intent` function is being called in the `process` method of the `router.py` file.\n\n```python\nintent = resolve_intent(command)\n```\n\nThis suggests that the project has already addressed the need for intent resolution and has implemented a working solution. \n\nGiven this, I would recommend not creating an additional intent resolver unless there's a specific reason to replace or extend the existing functionality. If you're looking to improve the existing implementation, I'd be happy to help with suggestions based on the project's goals and principles."
+    "last_response": "JARVIS online."
 }

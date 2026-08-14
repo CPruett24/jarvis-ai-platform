@@ -20,6 +20,60 @@ SUPPORTED_EXTENSIONS = {
     ".yml",
 }
 
+FILE_CATEGORIES = {
+    "test": {
+        "directories": {"tests", "test"},
+        "filename_prefixes": ("test_",),
+    },
+    "documentation": {
+        "directories": {"docs"},
+        "extensions": {".md", ".txt"},
+    },
+    "configuration": {
+        "extensions": {
+            ".json",
+            ".yaml",
+            ".yml",
+        },
+    },
+}
+
+def classify_project_file(path: Path):
+    """
+    Classify a project file by its architectural role.
+    """
+
+    relative_path = path.relative_to(
+        _project_root()
+    )
+
+    parts = relative_path.parts
+
+    if parts:
+
+        top_level = parts[0].lower()
+
+        if top_level in FILE_CATEGORIES["test"]["directories"]:
+            return "test"
+
+        if top_level in FILE_CATEGORIES["documentation"]["directories"]:
+            return "documentation"
+
+    filename = path.name.lower()
+
+    if filename.startswith(
+        FILE_CATEGORIES["test"]["filename_prefixes"]
+    ):
+        return "test"
+
+    if path.suffix.lower() in FILE_CATEGORIES["documentation"]["extensions"]:
+        return "documentation"
+
+    if path.suffix.lower() in FILE_CATEGORIES["configuration"]["extensions"]:
+        return "configuration"
+
+    return "application"
+
 
 def _project_root():
     return Path(__file__).resolve().parent.parent
