@@ -7,6 +7,10 @@ from services.project_analysis_cache import (
     get_source_tree,
 )
 
+from services.project_symbol_index import (
+    build_symbol_index,
+)
+
 from services.project_service import (
     find_matching_files,
 )
@@ -686,6 +690,13 @@ def get_function_calls(
         tree
     )
 
+    symbol_index = build_symbol_index(
+        file,
+        tree,
+        functions,
+        imports,
+    )
+
     calls = _extract_calls(
         function
     )
@@ -725,6 +736,7 @@ def get_function_calls(
         "calls": calls,
         "resolved_calls": resolved_calls,
         "unresolved_calls": unresolved_calls,
+        "symbol_index": symbol_index,
     }
 
 
@@ -756,6 +768,7 @@ def trace_execution(
             "category": "project",
             "calls": [],
             "unresolved_calls": [],
+            "symbol_index": None,
         }
 
         if depth >= max_depth:
@@ -778,6 +791,10 @@ def trace_execution(
 
         if result is None:
             return node
+
+        node["symbol_index"] = result[
+            "symbol_index"
+        ]
 
         node["unresolved_calls"] = (
             result["unresolved_calls"]

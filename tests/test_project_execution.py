@@ -12,6 +12,11 @@ from services.project_analysis_cache import (
     get_analysis_cache_info,
 )
 
+from services.project_symbol_index import (
+    find_function,
+    find_class,
+)
+
 
 def test_router_process_function_exists():
 
@@ -401,3 +406,89 @@ def test_analysis_cache_invalidates_when_file_changes():
     second = get_analysis_cache_info()
 
     assert second["source_tree"].hits > first["source_tree"].hits
+
+def test_symbol_index_contains_functions():
+
+    trace = trace_execution(
+        "router.py",
+        "process",
+        max_depth=1,
+    )
+
+    assert trace is not None
+
+    symbol_index = trace["symbol_index"]
+
+    assert any(
+        function["name"] == "process"
+        for function in symbol_index["functions"]
+    )
+
+
+def test_symbol_index_contains_imports():
+
+    trace = trace_execution(
+        "router.py",
+        "process",
+        max_depth=1,
+    )
+
+    assert trace is not None
+
+    symbol_index = trace[
+        "symbol_index"
+    ]
+
+    ask_ai_import = next(
+        (
+            item
+            for item in symbol_index[
+                "imports"
+            ]
+            if item["name"] == "ask_ai"
+        ),
+        None,
+    )
+
+    assert ask_ai_import is not None
+
+    assert ask_ai_import[
+        "module"
+    ] == "services.ai_service"
+
+
+def test_find_function():
+
+    trace = trace_execution(
+        "router.py",
+        "process",
+        max_depth=1,
+    )
+
+    assert trace is not None
+
+    result = find_function(
+        trace["symbol_index"],
+        "process",
+    )
+
+    assert result is not None
+    assert result["name"] == "process"
+
+
+def test_find_class():
+
+    trace = trace_execution(
+        "router.py",
+        "process",
+        max_depth=1,
+    )
+
+    assert trace is not None
+
+    result = find_class(
+        trace["symbol_index"],
+        "SomeClassThatDoesNotExist",
+    )
+
+    assert result is None
