@@ -407,6 +407,73 @@ def test_analysis_cache_invalidates_when_file_changes():
 
     assert second["source_tree"].hits > first["source_tree"].hits
 
+def test_find_function_callers_finds_execute_tool():
+
+    from services.project_execution import (
+        find_function_callers,
+    )
+
+    result = find_function_callers(
+        "tool_manager.py",
+        "execute_tool",
+    )
+
+    assert result is not None
+
+    callers = result["callers"]
+
+    router_callers = [
+        caller
+        for caller in callers
+        if caller["file"].endswith(
+            "commands/router.py"
+        )
+        and caller["function"] == "process"
+    ]
+
+    assert len(router_callers) == 1
+
+
+def test_find_function_callers_returns_target():
+
+    from services.project_execution import (
+        find_function_callers,
+    )
+
+    result = find_function_callers(
+        "tool_manager.py",
+        "execute_tool",
+    )
+
+    assert result is not None
+
+    assert result["function"] == (
+        "execute_tool"
+    )
+
+    assert result["file"].endswith(
+        "commands/tool_manager.py"
+    )
+
+
+def test_find_function_callers_does_not_guess_dynamic_calls():
+
+    from services.project_execution import (
+        find_function_callers,
+    )
+
+    result = find_function_callers(
+        "speaker.py",
+        "speak",
+    )
+
+    assert result is not None
+
+    for caller in result["callers"]:
+
+        assert caller["function"]
+        assert caller["file"]
+
 def test_symbol_index_contains_functions():
 
     trace = trace_execution(

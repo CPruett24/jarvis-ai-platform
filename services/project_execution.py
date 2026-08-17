@@ -13,6 +13,7 @@ from services.project_symbol_index import (
 
 from services.project_service import (
     find_matching_files,
+    _project_files,
 )
 
 
@@ -737,6 +738,126 @@ def get_function_calls(
         "resolved_calls": resolved_calls,
         "unresolved_calls": unresolved_calls,
         "symbol_index": symbol_index,
+    }
+
+def find_function_callers(
+    filename,
+    function_name,
+):
+    """
+    Find project functions that call the specified function.
+
+    Only statically resolved project calls are included.
+    Dynamic or unresolved calls are not guessed.
+    """
+
+    matches = find_matching_files(
+        filename
+    )
+
+    if not matches:
+        return None
+
+    target_file = matches[0]
+
+    target_path = _normalize_path(
+        target_file
+    )
+
+    callers = []
+    seen_callers = set()
+
+    for project_file in _project_files():
+
+        if project_file.suffix.lower() != ".py":
+            continue
+
+        tree = _get_source_tree(
+            project_file
+        )
+
+        if tree is None:
+            continue
+
+        functions = _extract_functions(
+            tree
+        )
+
+        for candidate_name in functions:
+
+            result = get_function_calls(
+                project_file.name,
+                candidate_name,
+            )
+
+            if result is None:
+                continue
+
+            for resolved in result[
+                "resolved_calls"
+            ]:
+
+                target = resolved[
+                    "target"
+                ]
+
+                if target["kind"] not in {
+                    "local",
+                    "project_function",
+                }:
+                    continue
+
+                if target["kind"] == "local":
+
+                    resolved_file = project_file
+
+                else:
+
+                    resolved_file = Path(
+                        target["path"]
+                    )
+
+                if (
+                    _normalize_path(
+                        resolved_file
+                    )
+                    == target_path
+                    and target[
+                        "function"
+                    ]
+                    == function_name
+                ):
+
+                    caller_key = (
+                        _normalize_path(
+                            project_file
+                        ),
+                        candidate_name,
+                    )
+
+                    if caller_key in seen_callers:
+                        continue
+
+                    seen_callers.add(
+                        caller_key
+                    )
+
+                    callers.append(
+                        {
+                            "file": _normalize_path(
+                                project_file
+                            ),
+                            "function": candidate_name,
+                            "call": resolved[
+                                "call"
+                            ],
+                        }
+                    )
+
+    return {
+        "file": target_path,
+        "function": function_name,
+        "callers": callers,
     }
 
 
