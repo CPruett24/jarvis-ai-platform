@@ -747,118 +747,21 @@ def find_function_callers(
     """
     Find project functions that call the specified function.
 
-    Only statically resolved project calls are included.
-    Dynamic or unresolved calls are not guessed.
+    Uses the cached project analysis index.
     """
 
-    matches = find_matching_files(
-        filename
+    from services.project_analysis_index import (
+        get_project_analysis_index,
+        find_indexed_function_callers,
     )
 
-    if not matches:
-        return None
+    index = get_project_analysis_index()
 
-    target_file = matches[0]
-
-    target_path = _normalize_path(
-        target_file
+    return find_indexed_function_callers(
+        index,
+        filename,
+        function_name,
     )
-
-    callers = []
-    seen_callers = set()
-
-    for project_file in _project_files():
-
-        if project_file.suffix.lower() != ".py":
-            continue
-
-        tree = _get_source_tree(
-            project_file
-        )
-
-        if tree is None:
-            continue
-
-        functions = _extract_functions(
-            tree
-        )
-
-        for candidate_name in functions:
-
-            result = get_function_calls(
-                project_file.name,
-                candidate_name,
-            )
-
-            if result is None:
-                continue
-
-            for resolved in result[
-                "resolved_calls"
-            ]:
-
-                target = resolved[
-                    "target"
-                ]
-
-                if target["kind"] not in {
-                    "local",
-                    "project_function",
-                }:
-                    continue
-
-                if target["kind"] == "local":
-
-                    resolved_file = project_file
-
-                else:
-
-                    resolved_file = Path(
-                        target["path"]
-                    )
-
-                if (
-                    _normalize_path(
-                        resolved_file
-                    )
-                    == target_path
-                    and target[
-                        "function"
-                    ]
-                    == function_name
-                ):
-
-                    caller_key = (
-                        _normalize_path(
-                            project_file
-                        ),
-                        candidate_name,
-                    )
-
-                    if caller_key in seen_callers:
-                        continue
-
-                    seen_callers.add(
-                        caller_key
-                    )
-
-                    callers.append(
-                        {
-                            "file": _normalize_path(
-                                project_file
-                            ),
-                            "function": candidate_name,
-                            "call": resolved[
-                                "call"
-                            ],
-                        }
-                    )
-
-    return {
-        "file": target_path,
-        "function": function_name,
-        "callers": callers,
-    }
 
 
 def trace_execution(
