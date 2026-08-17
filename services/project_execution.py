@@ -3,6 +3,10 @@ import builtins
 import inspect
 from pathlib import Path
 
+from services.project_analysis_cache import (
+    get_source_tree,
+)
+
 from services.project_service import (
     find_matching_files,
 )
@@ -55,24 +59,10 @@ def _module_to_path(module_name):
 
 def _get_source_tree(path):
     """
-    Parse a Python file into an AST.
+    Return a cached AST for a Python file.
     """
 
-    try:
-
-        content = path.read_text(
-            encoding="utf-8",
-            errors="ignore",
-        )
-
-        return ast.parse(content)
-
-    except (
-        OSError,
-        SyntaxError,
-    ):
-
-        return None
+    return get_source_tree(path)
 
 
 def _extract_functions(tree):

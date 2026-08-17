@@ -7,6 +7,11 @@ from services.project_execution import (
     format_tool_execution_trace,
 )
 
+from services.project_analysis_cache import (
+    clear_analysis_cache,
+    get_analysis_cache_info,
+)
+
 
 def test_router_process_function_exists():
 
@@ -353,3 +358,46 @@ def test_builtin_classification_still_works():
         call["name"] == "print"
         for call in builtin_calls
     )
+
+def test_analysis_cache_reuses_source_tree():
+    clear_analysis_cache()
+
+    trace_execution(
+        "router.py",
+        "process",
+        max_depth=1,
+    )
+
+    first = get_analysis_cache_info()
+
+    trace_execution(
+        "router.py",
+        "process",
+        max_depth=1,
+    )
+
+    second = get_analysis_cache_info()
+
+    assert second["source_tree"].hits > first["source_tree"].hits
+
+
+def test_analysis_cache_invalidates_when_file_changes():
+    clear_analysis_cache()
+
+    trace_execution(
+        "router.py",
+        "process",
+        max_depth=1,
+    )
+
+    first = get_analysis_cache_info()
+
+    trace_execution(
+        "router.py",
+        "process",
+        max_depth=1,
+    )
+
+    second = get_analysis_cache_info()
+
+    assert second["source_tree"].hits > first["source_tree"].hits
