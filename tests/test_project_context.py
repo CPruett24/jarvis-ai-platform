@@ -143,3 +143,202 @@ def test_full_project_context_has_analysis_summary(
     assert "PROJECT ANALYSIS" in context
     assert "router.py" in context
     assert "process" in context
+
+def test_get_relevant_project_analysis_includes_function_callers(
+    monkeypatch,
+):
+
+    import services.project_context as project_context
+
+    monkeypatch.setattr(
+        project_context,
+        "get_project_analysis_index",
+        lambda: {
+            "files": {
+                "C:/JARVIS/commands/router.py": {},
+                "C:/JARVIS/main.py": {},
+            },
+            "symbols": {
+                (
+                    "C:/JARVIS/commands/router.py",
+                    "process",
+                ): {},
+            },
+            "calls": {},
+            "reverse_calls": {
+                (
+                    "C:/JARVIS/commands/router.py",
+                    "process",
+                ): [
+                    {
+                        "file": "C:/JARVIS/main.py",
+                        "function": "<module>",
+                    }
+                ]
+            },
+        },
+    )
+
+    context = (
+        project_context.get_relevant_project_analysis(
+            "what calls process?"
+        )
+    )
+
+    assert "process" in context
+    assert "main.py" in context
+    assert "<module>" in context
+
+def test_get_relevant_project_analysis_includes_function_dependencies(
+    monkeypatch,
+):
+
+    import services.project_context as project_context
+
+    monkeypatch.setattr(
+        project_context,
+        "get_project_analysis_index",
+        lambda: {
+            "files": {
+                "C:/JARVIS/commands/router.py": {},
+            },
+            "symbols": {
+                (
+                    "C:/JARVIS/commands/router.py",
+                    "process",
+                ): {},
+            },
+            "calls": {
+                (
+                    "C:/JARVIS/commands/router.py",
+                    "process",
+                ): [
+                    {
+                        "call": {
+                            "name": "execute_tool",
+                            "type": "name",
+                        },
+                        "target": {
+                            "kind": "project_function",
+                            "function": "execute_tool",
+                            "path": (
+                                "C:/JARVIS/commands/"
+                                "tool_manager.py"
+                            ),
+                        },
+                    }
+                ],
+            },
+            "reverse_calls": {},
+        },
+    )
+
+    context = (
+        project_context.get_relevant_project_analysis(
+            "what does process call?"
+        )
+    )
+
+    assert "process" in context
+    assert "execute_tool" in context
+    assert "tool_manager.py" in context
+
+def test_get_relevant_project_analysis_deduplicates_function_calls(
+    monkeypatch,
+):
+
+    import services.project_context as project_context
+
+    monkeypatch.setattr(
+        project_context,
+        "get_project_analysis_index",
+        lambda: {
+            "files": {
+                "C:/JARVIS/commands/router.py": {},
+            },
+            "symbols": {
+                (
+                    "C:/JARVIS/commands/router.py",
+                    "process",
+                ): {},
+            },
+            "calls": {
+                (
+                    "C:/JARVIS/commands/router.py",
+                    "process",
+                ): [
+                    {
+                        "call": {
+                            "name": "execute_tool",
+                            "type": "name",
+                        },
+                        "target": {
+                            "kind": "project_function",
+                            "function": "execute_tool",
+                            "path": (
+                                "C:/JARVIS/commands/"
+                                "tool_manager.py"
+                            ),
+                        },
+                    },
+                    {
+                        "call": {
+                            "name": "execute_tool",
+                            "type": "name",
+                        },
+                        "target": {
+                            "kind": "project_function",
+                            "function": "execute_tool",
+                            "path": (
+                                "C:/JARVIS/commands/"
+                                "tool_manager.py"
+                            ),
+                        },
+                    },
+                    {
+                        "call": {
+                            "name": "speak",
+                            "type": "name",
+                        },
+                        "target": {
+                            "kind": "project_function",
+                            "function": "speak",
+                            "path": (
+                                "C:/JARVIS/services/"
+                                "speaker.py"
+                            ),
+                        },
+                    },
+                    {
+                        "call": {
+                            "name": "speak",
+                            "type": "name",
+                        },
+                        "target": {
+                            "kind": "project_function",
+                            "function": "speak",
+                            "path": (
+                                "C:/JARVIS/services/"
+                                "speaker.py"
+                            ),
+                        },
+                    },
+                ],
+            },
+            "reverse_calls": {},
+        },
+    )
+
+    context = (
+        project_context.get_relevant_project_analysis(
+            "What does process call?"
+        )
+    )
+
+    assert context.count(
+        "tool_manager.py::execute_tool()"
+    ) == 1
+
+    assert context.count(
+        "speaker.py::speak()"
+    ) == 1

@@ -416,6 +416,224 @@ def _format_project_analysis_summary(index):
 
     return "\n".join(lines)
 
+def get_relevant_project_analysis(question):
+    """
+    Retrieve compact, verified static-analysis facts relevant
+    to a project/code question.
+
+    This intentionally returns targeted relationships rather
+    than the entire project analysis index.
+    """
+
+    index = get_project_analysis_index()
+
+    if not index:
+        return ""
+
+    question_lower = question.lower()
+
+    lines = [
+        "===== RELEVANT PROJECT ANALYSIS ====="
+    ]
+
+    # ---------------------------------------------------------
+    # Function-call questions
+    # ---------------------------------------------------------
+
+    if (
+        "what calls" in question_lower
+        or "who calls" in question_lower
+        or "callers" in question_lower
+    ):
+
+        function_names = []
+
+        for (
+            file_path,
+            function_name,
+        ) in index["symbols"]:
+
+            if function_name.lower() in question_lower:
+
+                function_names.append(
+                    (
+                        file_path,
+                        function_name,
+                    )
+                )
+
+        for (
+            file_path,
+            function_name,
+        ) in function_names:
+
+            callers = index[
+                "reverse_calls"
+            ].get(
+                (
+                    file_path,
+                    function_name,
+                ),
+                [],
+            )
+
+            lines.append(
+                f"\nFunction: "
+                f"{file_path}::{function_name}()"
+            )
+
+            seen_callers = set()
+
+            if callers:
+
+                lines.append(
+                    "Callers:"
+                )
+
+                for caller in callers:
+
+                    caller_key = (
+                        caller["file"],
+                        caller["function"],
+                    )
+
+                    if caller_key in seen_callers:
+                        continue
+
+                    seen_callers.add(
+                        caller_key
+                    )
+
+                    lines.append(
+                        f"- "
+                        f"{caller['file']}::"
+                        f"{caller['function']}()"
+                    )
+
+            else:
+
+                lines.append(
+                    "- No indexed callers."
+                )
+
+    # ---------------------------------------------------------
+    # Function dependency questions
+    # ---------------------------------------------------------
+
+    if (
+        "what does" in question_lower
+        and "call" in question_lower
+    ):
+
+        function_names = []
+
+        for (
+            file_path,
+            function_name,
+        ) in index["calls"]:
+
+            if function_name.lower() in question_lower:
+
+                function_names.append(
+                    (
+                        file_path,
+                        function_name,
+                    )
+                )
+
+        for (
+            file_path,
+            function_name,
+        ) in function_names:
+
+            calls = index[
+                "calls"
+            ].get(
+                (
+                    file_path,
+                    function_name,
+                ),
+                [],
+            )
+
+            lines.append(
+                f"\nFunction: "
+                f"{file_path}::{function_name}()"
+            )
+
+            seen_targets = set()
+
+            if calls:
+
+                lines.append(
+                    "Calls:"
+                )
+
+                for call in calls:
+
+                    target = call.get(
+                        "target",
+                        {}
+                    )
+
+                    target_function = target.get(
+                        "function"
+                    )
+
+                    target_path = target.get(
+                        "path"
+                    )
+
+                    if not target_function:
+                        continue
+
+                    if target_path:
+
+                        relationship_key = (
+                            target_path,
+                            target_function,
+                        )
+
+                    else:
+
+                        relationship_key = (
+                            None,
+                            target_function,
+                        )
+
+                    if relationship_key in seen_targets:
+                        continue
+
+                    seen_targets.add(
+                        relationship_key
+                    )
+
+                    if target_path:
+
+                        lines.append(
+                            f"- "
+                            f"{target_path}::"
+                            f"{target_function}()"
+                        )
+
+                    else:
+
+                        lines.append(
+                            f"- "
+                            f"{target_function}()"
+                        )
+
+            else:
+
+                lines.append(
+                    "- No indexed calls."
+                )
+
+    if len(lines) == 1:
+        return ""
+
+    return "\n".join(lines)
+
 def get_full_project_context(question):
     """
     Build the complete reasoning context for a project-aware question.
@@ -464,6 +682,18 @@ def get_full_project_context(question):
 
             context_parts.append(
                 project_analysis
+            )
+
+        analysis_context = (
+            get_relevant_project_analysis(
+                question
+            )
+        )
+
+        if analysis_context:
+
+            context_parts.append(
+                analysis_context
             )
 
     return "\n\n".join(
