@@ -4,6 +4,7 @@ from services.project_service import (
     _project_files,
 )
 
+_last_project_snapshot = None
 
 def get_project_state():
     """
@@ -152,3 +153,76 @@ def compare_project_snapshots(
         "modified": modified,
         "deleted": deleted,
     }
+
+def refresh_project_analysis_if_changed():
+    """
+    Compare the current project snapshot with the previous snapshot.
+
+    If project files changed, invalidate the cached project analysis
+    index so it will be rebuilt on the next request.
+    """
+
+    global _last_project_snapshot
+
+    current_snapshot = get_project_snapshot()
+
+    if _last_project_snapshot is None:
+
+        _last_project_snapshot = current_snapshot
+
+        return {
+            "changed": False,
+            "changes": {
+                "added": [],
+                "modified": [],
+                "deleted": [],
+            },
+        }
+
+    changes = compare_project_snapshots(
+        _last_project_snapshot,
+        current_snapshot,
+    )
+
+    changed = any(
+        changes.values()
+    )
+
+    if should_refresh_project_analysis(
+        changes
+    ):
+
+        from services.project_analysis_index import (
+            clear_project_analysis_index_cache,
+        )
+
+        clear_project_analysis_index_cache()
+
+    _last_project_snapshot = current_snapshot
+
+    return {
+        "changed": changed,
+        "changes": changes,
+    }
+
+def should_refresh_project_analysis(
+    changes,
+):
+    """
+    Determine whether project analysis must be
+    refreshed based on detected file changes.
+
+    Only Python file changes affect the static
+    Python analysis index.
+    """
+
+    changed_files = (
+        changes.get("added", [])
+        + changes.get("modified", [])
+        + changes.get("deleted", [])
+    )
+
+    return any(
+        str(path).lower().endswith(".py")
+        for path in changed_files
+    )

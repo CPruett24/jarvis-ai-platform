@@ -144,3 +144,149 @@ def test_deleted_file_is_detected():
     assert result["deleted"] == [
         "router.py"
     ]
+
+def test_refresh_project_analysis_when_unchanged():
+
+    from services.project_state import (
+        refresh_project_analysis_if_changed,
+    )
+
+    result = refresh_project_analysis_if_changed()
+
+    assert result["changed"] is False
+    assert result["changes"]["added"] == []
+    assert result["changes"]["modified"] == []
+    assert result["changes"]["deleted"] == []
+
+
+def test_refresh_project_analysis_detects_changes():
+
+    from services.project_state import (
+        refresh_project_analysis_if_changed,
+    )
+
+    import services.project_state as project_state
+
+    previous = {
+        "files": {
+            "router.py": (
+                "old-signature",
+            )
+        }
+    }
+
+    current = {
+        "files": {
+            "router.py": (
+                "new-signature",
+            )
+        }
+    }
+
+    original_snapshot = (
+        project_state._last_project_snapshot
+    )
+
+    try:
+
+        project_state._last_project_snapshot = (
+            previous
+        )
+
+        project_state.get_project_snapshot = (
+            lambda: current
+        )
+
+        result = (
+            refresh_project_analysis_if_changed()
+        )
+
+        assert result["changed"] is True
+        assert result["changes"]["modified"] == [
+            "router.py"
+        ]
+
+    finally:
+
+        project_state._last_project_snapshot = (
+            original_snapshot
+        )
+
+def test_non_python_change_does_not_require_analysis_refresh():
+
+    from services.project_state import (
+        should_refresh_project_analysis,
+    )
+
+    changes = {
+        "added": [],
+        "modified": [
+            r"C:\Projects\JARVIS-AI\README.md"
+        ],
+        "deleted": [],
+    }
+
+    assert (
+        should_refresh_project_analysis(changes)
+        is False
+    )
+
+
+def test_python_change_requires_analysis_refresh():
+
+    from services.project_state import (
+        should_refresh_project_analysis,
+    )
+
+    changes = {
+        "added": [],
+        "modified": [
+            r"C:\Projects\JARVIS-AI\commands\router.py"
+        ],
+        "deleted": [],
+    }
+
+    assert (
+        should_refresh_project_analysis(changes)
+        is True
+    )
+
+
+def test_added_python_file_requires_analysis_refresh():
+
+    from services.project_state import (
+        should_refresh_project_analysis,
+    )
+
+    changes = {
+        "added": [
+            r"C:\Projects\JARVIS-AI\services\new_service.py"
+        ],
+        "modified": [],
+        "deleted": [],
+    }
+
+    assert (
+        should_refresh_project_analysis(changes)
+        is True
+    )
+
+
+def test_deleted_python_file_requires_analysis_refresh():
+
+    from services.project_state import (
+        should_refresh_project_analysis,
+    )
+
+    changes = {
+        "added": [],
+        "modified": [],
+        "deleted": [
+            r"C:\Projects\JARVIS-AI\services\old_service.py"
+        ],
+    }
+
+    assert (
+        should_refresh_project_analysis(changes)
+        is True
+    )
