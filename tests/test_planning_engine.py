@@ -14,6 +14,15 @@ from services.planning_engine import (
     create_plan_from_tasks,
 )
 
+from models.planning_proposal import (
+    PlanningProposal,
+    TaskProposal,
+)
+
+from services.planning_engine import (
+    persist_planning_proposal,
+)
+
 
 @pytest.fixture(autouse=True)
 def clean_planning_data():
@@ -200,3 +209,103 @@ def test_task_requires_title():
                 },
             ],
         )
+
+def test_persist_planning_proposal():
+
+    proposal = PlanningProposal(
+        goal_title="Improve JARVIS",
+        goal_description="Improve the COO system.",
+        plan_title="COO improvement plan",
+        plan_description="Implement improvements.",
+        tasks=[
+            TaskProposal(
+                title="Analyze architecture",
+                description="Review architecture.",
+                priority="high",
+            ),
+            TaskProposal(
+                title="Implement improvements",
+                description="Make the required changes.",
+                priority="normal",
+            ),
+        ],
+    )
+
+    result = persist_planning_proposal(
+        proposal
+    )
+
+    assert result["goal"].title == (
+        "Improve JARVIS"
+    )
+
+    assert result["plan"].title == (
+        "COO improvement plan"
+    )
+
+    assert len(
+        result["tasks"]
+    ) == 2
+
+
+def test_persist_requires_proposal():
+
+    with pytest.raises(ValueError):
+
+        persist_planning_proposal(
+            "not a proposal"
+        )
+
+def test_persist_planning_proposal():
+
+    proposal = PlanningProposal(
+        goal_title="Improve JARVIS Conversations",
+        goal_description=(
+            "Improve natural multi-turn "
+            "conversations."
+        ),
+        plan_title="Conversation Enhancement",
+        plan_description=(
+            "Improve conversational context "
+            "and memory."
+        ),
+        tasks=[
+            TaskProposal(
+                title="Improve conversation flow",
+                description=(
+                    "Improve multi-turn conversation."
+                ),
+                priority="high",
+                capability_status="partial",
+                task_type="enhancement",
+            ),
+            TaskProposal(
+                title="Integrate memory",
+                description=(
+                    "Integrate relevant memories."
+                ),
+                priority="high",
+                capability_status="implemented",
+                task_type="integration",
+            ),
+        ],
+    )
+
+    result = persist_planning_proposal(
+        proposal
+    )
+
+    assert result["goal"].title == (
+        "Improve JARVIS Conversations"
+    )
+
+    assert result["plan"].goal_id == (
+        result["goal"].id
+    )
+
+    assert len(
+        result["tasks"]
+    ) == 2
+
+    assert result["tasks"][0].position == 0
+    assert result["tasks"][1].position == 1

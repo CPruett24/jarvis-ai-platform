@@ -379,6 +379,125 @@ def get_project_context():
         max_sections=10,
     )
 
+PROJECT_CAPABILITIES = {
+    "project_understanding": {
+        "project_state_analysis": "implemented",
+        "project_file_discovery": "implemented",
+        "python_symbol_indexing": "implemented",
+        "project_analysis_index": "implemented",
+        "file_dependency_analysis": "implemented",
+        "dependency_graph_construction": "implemented",
+        "project_impact_analysis": "implemented",
+        "project_target_resolution": "implemented",
+        "multi_file_project_context": "partial",
+        "full_execution_flow_understanding": "partial",
+    },
+    "conversation": {
+        "conversation_database": "implemented",
+        "conversation_sessions": "implemented",
+        "conversation_history_retrieval": "implemented",
+        "conversation_manager": "implemented",
+        "conversation_topic_tracking": "partial",
+        "follow_up_handling": "implemented",
+        "topic_switching": "implemented",
+        "natural_multi_turn_conversational_reasoning": "partial",
+        "long_term_memory_storage": "implemented",
+        "memory_search": "implemented",
+        "memory_deletion": "implemented",
+        "memory_integration": "partial",
+    },
+    "code_assistant": {
+        "code_question_detection": "implemented",
+        "contextual_code_question_detection": "implemented",
+        "code_assistant": "implemented",
+        "project_aware_code_context": "implemented",
+        "conversational_code_reasoning": "implemented",
+    },
+    "planning": {
+        "goal_management": "implemented",
+        "task_management": "implemented",
+        "plan_management": "implemented",
+        "deterministic_planning_engine": "implemented",
+        "ai_planning_proposals": "implemented",
+        "ai_planning_validation": "implemented",
+        "autonomous_multi_step_plan_execution": "missing",
+    },
+    "agents": {
+        "agent_orchestration": "missing",
+        "agent_delegation": "missing",
+        "agent_task_execution": "missing",
+        "agent_result_verification": "missing",
+    },
+    "approval_and_autonomy": {
+        "human_approval_workflow": "missing",
+        "risk_based_action_approval": "missing",
+        "autonomous_action_execution": "missing",
+    },
+    "workspace": {
+        "workspace_management": "implemented",
+        "workspace_selection": "implemented",
+        "workspace_aware_behavior": "partial",
+    },
+}
+
+
+def get_project_capabilities():
+    """
+    Return the current JARVIS capability registry in a
+    compact format suitable for AI reasoning.
+    """
+
+    lines = [
+        "===== CURRENT JARVIS CAPABILITIES ====="
+    ]
+
+    for category, capabilities in (
+        PROJECT_CAPABILITIES.items()
+    ):
+
+        lines.append(
+            f"\n[{category}]"
+        )
+
+        for capability, status in (
+            capabilities.items()
+        ):
+
+            lines.append(
+                f"- {capability}: {status}"
+            )
+
+    return "\n".join(lines)
+
+def get_capability_status(
+    capability,
+):
+    """
+    Return the authoritative implementation status
+    for a capability.
+
+    Returns None when the capability is unknown.
+    """
+
+    for capabilities in PROJECT_CAPABILITIES.values():
+
+        if capability in capabilities:
+
+            return capabilities[capability]
+
+    return None
+
+def get_all_capabilities():
+    """
+    Return a copy of the complete capability registry.
+    """
+
+    return {
+        category: dict(capabilities)
+        for category, capabilities
+        in PROJECT_CAPABILITIES.items()
+    }
+
 def _format_project_analysis_summary(index):
     """
     Format a compact summary of the static project analysis.

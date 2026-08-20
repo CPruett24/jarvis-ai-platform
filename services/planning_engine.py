@@ -1,6 +1,7 @@
 from services.goal_service import create_goal
 from services.plan_service import create_plan
 from services.task_service import create_task
+from models.planning_proposal import PlanningProposal
 
 
 def create_plan_from_tasks(
@@ -87,3 +88,38 @@ def create_plan_from_tasks(
         "plan": plan,
         "tasks": created_tasks,
     }
+
+def persist_planning_proposal(
+    proposal,
+):
+    """
+    Persist a validated PlanningProposal.
+
+    The proposal must already have been generated and
+    validated by the AI planning layer.
+    """
+
+    if not isinstance(
+        proposal,
+        PlanningProposal,
+    ):
+        raise ValueError(
+            "Expected a PlanningProposal."
+        )
+
+    tasks = [
+        {
+            "title": task.title,
+            "description": task.description,
+            "priority": task.priority,
+        }
+        for task in proposal.tasks
+    ]
+
+    return create_plan_from_tasks(
+        goal_title=proposal.goal_title,
+        goal_description=proposal.goal_description,
+        plan_title=proposal.plan_title,
+        plan_description=proposal.plan_description,
+        tasks=tasks,
+    )
