@@ -1,6 +1,6 @@
 # JARVIS AI Platform
 
-> **JARVIS (Just A Rather Very Intelligent System)** is a local-first conversational AI platform inspired by Iron Man's JARVIS. Built with Python and powered by local language models, JARVIS is designed to evolve beyond a voice assistant into an intelligent AI companion capable of conversation, reasoning, software engineering assistance, automation, and personal productivity.
+> **JARVIS (Just A Rather Very Intelligent System)** is a local-first conversational AI platform inspired by Iron Man's JARVIS. Built with Python and powered primarily by local AI, JARVIS is evolving beyond a traditional voice assistant into an intelligent AI companion capable of conversation, reasoning, software engineering assistance, memory, tool use, automation, planning, and personal productivity.
 
 ---
 
@@ -8,14 +8,61 @@
 
 The goal of JARVIS is not simply to answer questions or execute commands.
 
-The goal is to create an AI that feels like collaborating with an intelligent assistant—one that remembers context, understands ongoing conversations, reasons through problems, and can take meaningful action when appropriate.
+The goal is to create an AI that feels like collaborating with an intelligent assistant—one that remembers context, understands ongoing conversations, reasons through problems, uses real capabilities when available, and can take meaningful action when appropriate.
 
-JARVIS is built around four long-term capabilities:
+JARVIS is built around five long-term capabilities:
 
 * **Conversation** – Natural, context-aware dialogue that feels human.
 * **Reasoning** – Intelligent problem solving and software engineering assistance.
 * **Memory** – Long-term and conversational memory that reduces repetition.
-* **Action** – The ability to automate tasks, control tools, and assist with real work.
+* **Action** – The ability to use tools and automate real tasks.
+* **Orchestration** – The intelligence layer that connects models, memory, tools, applications, and services into one assistant.
+
+The long-term objective is for JARVIS to become a **personal AI operating layer**, while remaining local-first, modular, grounded, and under the user's control.
+
+---
+
+# Important Development Direction
+
+JARVIS is **not** intended to recreate every piece of AI infrastructure from scratch.
+
+The project will build the parts that make JARVIS uniquely JARVIS and integrate mature infrastructure where appropriate.
+
+### Build ourselves
+
+JARVIS should own:
+
+* Conversation orchestration
+* Context management
+* Memory behavior
+* Intent and capability resolution
+* Tool selection
+* Tool execution policy
+* Conversation state
+* Interruption behavior
+* Planning and task orchestration
+* JARVIS-specific safety and permissions
+* Verification of important actions
+* Integration between all of these systems
+
+### Integrate existing technology
+
+Where mature solutions already exist, JARVIS should prefer integrating them rather than unnecessarily recreating them.
+
+Examples include:
+
+* Language models
+* Speech recognition
+* Text-to-speech
+* Databases
+* Scheduling infrastructure
+* Browser automation
+* Operating-system APIs
+* External service APIs
+* Search/retrieval systems
+* Specialized AI models
+
+This gives JARVIS more time to focus on orchestration, intelligence, reliability, and user experience.
 
 ---
 
@@ -26,10 +73,16 @@ JARVIS is built around four long-term capabilities:
 * Wake word activation ("Jarvis")
 * Session-based voice conversations
 * Natural follow-up questions
-* Topic switching during conversations
-* Clarification questions for incomplete requests
-* Context-aware conversations
-* Persistent conversational memory
+* Topic switching
+* Clarification handling
+* Conversation context
+* Persistent conversation history
+* Streaming AI responses
+* Sentence-buffered speech
+* Interruptible speech output
+* Speech interruption detection
+* Interruption normalization and routing
+* Cancellation of current speech when the user interrupts
 
 Example:
 
@@ -50,8 +103,10 @@ You:
 What about tool_manager.py?
 
 JARVIS:
-(Switches topics naturally and begins explaining tool_manager.py.)
+(Switches topics naturally.)
 ```
+
+The current voice architecture separates interruption capture from normal command routing so an interruption does not recursively invoke the router.
 
 ---
 
@@ -67,6 +122,15 @@ Current capabilities include:
 * AI-powered code explanations
 * Context-aware code discussions
 * Conversational navigation through source code
+* Project context
+* Project state inspection
+* Dependency analysis
+* Project graph analysis
+* Project impact analysis
+* Project target resolution
+* Function/symbol analysis
+* Git/project information
+* Development workspace support
 
 Examples:
 
@@ -74,8 +138,9 @@ Examples:
 * "Summarize project_service.py"
 * "Search for execute_tool"
 * "Find conversation_manager.py"
+* "How does this function affect the rest of the project?"
 
-The long-term vision is for JARVIS to understand entire software projects and act as an engineering partner rather than simply generating code.
+The long-term goal is for JARVIS to understand entire software projects and act as an engineering partner rather than simply generating code.
 
 ---
 
@@ -90,37 +155,67 @@ Current features include:
 * Search memories
 * Forget memories
 * Memory-aware conversations
+* Persistent conversation history
 
-This allows conversations to become increasingly personalized over time.
+The next evolution is more selective memory: deciding what should be remembered, what belongs only to short-term context, and what project/task state should remain separate from personal memory.
 
 ---
 
 ## Voice Interface
+
+Current voice capabilities include:
 
 * Faster-Whisper speech recognition
 * Wake word detection
 * Session-based conversations
 * Local text-to-speech
 * Hands-free interaction
+* Streaming speech responses
+* Speech interruption
+* Interruptible TTS
+
+The voice layer is treated as an interface to JARVIS rather than the core intelligence itself.
 
 ---
 
 ## AI Intelligence
 
-Powered entirely by local AI.
-
-Current stack:
+Current local AI stack:
 
 * Ollama
-* Llama 3.1
+* Llama 3.1 8B
 
-Current capabilities:
+Current uses include:
 
 * General conversation
 * Context-aware responses
 * Developer assistance
 * Code explanations
-* Conversational context awareness
+* Planning
+* Conversational reasoning
+
+The model is one component of JARVIS. JARVIS itself includes the router, tools, memory, context, state, voice, planning, and orchestration around the model.
+
+---
+
+## Tool and Command System
+
+JARVIS has a modular command/tool architecture including:
+
+* Static commands
+* Dynamic commands
+* Command aliases
+* Tool registry
+* Tool manager
+* Deterministic actions
+* Intent resolution
+* Tool execution
+
+A core design rule is:
+
+> **If JARVIS has a real capability for a request, use that capability instead of asking the language model to guess the answer.**
+
+For example, a current-time request should use the system clock rather than rely on the LLM to invent a time.
 
 ---
 
@@ -134,7 +229,48 @@ Current workspaces include:
 * AWS
 * School
 
-Designed to expand into complete workspace automation.
+The workspace system is intended to expand into broader environment and workflow automation.
+
+---
+
+## Planning
+
+JARVIS now has planning infrastructure intended to plan work against the **existing project**, rather than treating JARVIS as a blank-slate system.
+
+The planning architecture distinguishes between:
+
+* What exists today
+* What is planned
+* What is missing
+* What should be extended
+* What should be integrated
+
+Planning should favor extending existing services and capabilities rather than recreating them.
+
+---
+
+# Grounding and Capability Awareness
+
+A major architectural priority is making JARVIS reliable about what it actually knows and can do.
+
+JARVIS should distinguish between:
+
+* **Available** – a real capability exists and can currently be executed.
+* **Unavailable** – the capability does not exist or cannot currently be accessed.
+* **Planned** – the capability is on the roadmap but is not implemented.
+* **Observed** – information came from a real tool or source.
+* **Remembered** – information came from persistent memory.
+* **Inferred** – information was reasoned about rather than directly observed.
+
+JARVIS should never claim that it:
+
+* checked a calendar it cannot access
+* read an email it cannot access
+* performed an action it did not perform
+* remembers information that is not stored
+* observed current information that was never retrieved
+
+This distinction is foundational to the future agentic system.
 
 ---
 
@@ -143,7 +279,7 @@ Designed to expand into complete workspace automation.
 ## AI
 
 * Ollama
-* Llama 3.1
+* Llama 3.1 8B
 
 ## Speech
 
@@ -169,7 +305,7 @@ Designed to expand into complete workspace automation.
 
 JARVIS follows a modular, service-oriented architecture.
 
-```
+```text
 JARVIS-AI/
 
 commands/
@@ -187,11 +323,24 @@ services/
 ├── code_assistant.py
 ├── command_parser.py
 ├── conversation_db.py
+├── conversation_interrupt.py
 ├── conversation_manager.py
 ├── conversation_service.py
+├── conversation_speech.py
 ├── listener.py
 ├── memory_service.py
+├── project_analysis_cache.py
+├── project_analysis_index.py
+├── project_context.py
+├── project_dependencies.py
+├── project_execution.py
+├── project_graph.py
+├── project_impact.py
 ├── project_service.py
+├── project_state.py
+├── project_symbol_index.py
+├── project_target.py
+├── prompt_builder.py
 ├── speaker.py
 ├── status_service.py
 ├── transcription_service.py
@@ -202,7 +351,8 @@ models/
 ├── conversation.py
 ├── memory.py
 ├── session.py
-└── tool_request.py
+├── tool_request.py
+└── planning_proposal.py
 
 data/
 │
@@ -212,7 +362,7 @@ data/
 
 tests/
 │
-└── test_intent.py
+└── ...
 
 docs/
 │
@@ -223,13 +373,7 @@ main.py
 dashboard.py
 ```
 
-The architecture emphasizes:
-
-* Separation of concerns
-* Modular services
-* Extensibility
-* Maintainability
-* Reusable components
+The exact file structure will evolve as the project grows. The architectural goal is stable separation of concerns, not preserving a fixed list of files forever.
 
 ---
 
@@ -243,8 +387,11 @@ The architecture emphasizes:
 * Local AI
 * Dashboard
 * Workspace management
+* Modular command architecture
+* Tool registry/manager
+* Persistent conversation infrastructure
 
-## Conversation ✅
+## Conversation ✅ / 🚧
 
 * Command parser
 * Follow-up detection
@@ -252,14 +399,31 @@ The architecture emphasizes:
 * Pending requests
 * Topic switching
 * Context-aware AI
+* Streaming responses
+* Sentence-buffered speech
+* Interruptible TTS
+* Conversation interruption monitoring
+* Interruption routing and normalization
 
-## Developer Assistant ✅
+The next conversation priority is improving grounding, capability awareness, and reliable tool-first behavior.
+
+## Developer Assistant ✅ / 🚧
 
 * Project search
 * File search
 * File summaries
 * Code explanations
 * Conversational code navigation
+* Project context
+* Dependency analysis
+* Project graph analysis
+* Project impact analysis
+* Project target resolution
+* Symbol/function analysis
+* Execution tracing infrastructure
+* AI planning infrastructure
+
+The next goal is turning these building blocks into a more complete engineering workflow.
 
 ---
 
@@ -270,59 +434,140 @@ The architecture emphasizes:
 Completed:
 
 * Wake word detection
-* Faster-Whisper integration
+* Speech recognition integration
 * Local LLM integration
 * Persistent memory
 * Dashboard
 * Workspace management
+* Core router
+* Tool registry/manager
+* Conversation persistence
 * Context-aware conversations
 
 ---
 
 ## Phase 2 — Conversational Intelligence 🚧
 
+Completed/implemented:
+
+* Follow-up detection
+* Clarification handling
+* Topic switching
+* Conversation context
+* Streaming responses
+* Sentence buffering
+* Interruptible speech
+* Speech interruption handling
+* Deterministic interruption routing
+
 Current focus:
 
-* AI code assistant
-* Engineering discussions
-* Topic history
-* Improved reasoning
-* Code-aware conversations
+* Capability-aware AI
+* Tool-first routing
+* Grounded responses
+* Better conversation state
+* Stronger distinction between memory, tool results, and inference
+* Better handling of unavailable capabilities
 
 ---
 
-## Phase 3 — Software Engineering Assistant
+## Phase 3 — Software Engineering Assistant 🚧
 
-Planned:
+Existing foundation:
 
-* Multi-file understanding
-* Execution tracing
+* Project understanding
+* Project context
+* Dependency analysis
+* Dependency graph
+* Impact analysis
+* Symbol/function analysis
+* Project target resolution
+* Project execution infrastructure
+* AI planning
+
+Planned progression:
+
+* Multi-file reasoning
+* Execution-flow explanations
+* Architecture analysis
 * Code review
-* Architectural analysis
+* Bug analysis
 * Refactoring suggestions
 * Documentation generation
-* Project planning
+* Test-aware code changes
+* Controlled code modification
+* Change verification
 
 Example:
 
-> "How does main.py eventually call execute_tool()?"
+> "How does main.py eventually reach execute_tool()?"
 
 ---
 
-## Phase 4 — Intelligent Automation
+## Phase 4 — Planning, Tasks, and Goals
 
 Planned:
 
-* Desktop automation
-* Browser automation
-* Git integration
-* Build automation
-* Testing automation
-* Plugin framework
+* Natural-language task creation
+* Persistent reminders
+* Due dates
+* Recurring tasks
+* Task completion
+* Goals
+* Goal/task relationships
+* Planning execution
+* Progress tracking
+* Verification after execution
 
 ---
 
-## Phase 5 — Personal AI Assistant
+## Phase 5 — Tool and Integration Platform
+
+Planned:
+
+* Unified tool contracts
+* Capability discovery
+* Argument validation
+* Permission levels
+* Tool execution tracing
+* Tool failure handling
+* Result normalization
+* Verification strategies
+
+Potential integrations:
+
+* Git
+* Browser
+* Operating system
+* Calendar
+* Email
+* Notifications
+* Web research
+* External APIs
+
+These should be integrated behind JARVIS's tool layer rather than built as unrelated subsystems.
+
+---
+
+## Phase 6 — Intelligent Automation
+
+Planned:
+
+* Multi-step workflows
+* Tool chaining
+* Conditional execution
+* Retry/recovery
+* Human approval gates
+* Progress reporting
+* Cancellation
+* Execution history
+* Build/test automation
+* Documentation workflows
+* Workspace automation
+
+---
+
+## Phase 7 — Personal AI Assistant
 
 Planned:
 
@@ -331,28 +576,73 @@ Planned:
 * Task management
 * Daily briefings
 * Smart reminders
+* Notifications
 * Productivity assistance
+* Proactive follow-ups
 
 ---
 
-## Phase 6 — AI Operating Layer
+## Phase 8 — Multimodal and Environmental Awareness
+
+Long-term:
+
+* Screen understanding
+* OCR
+* Image understanding
+* Browser awareness
+* Application state
+* Device awareness
+* Optional camera/environment awareness
+
+Where mature technology already exists, JARVIS should integrate it rather than recreate perception models from scratch.
+
+---
+
+## Phase 9 — Multi-Interface JARVIS
+
+Long-term:
+
+* Voice
+* Desktop
+* Terminal
+* Web dashboard
+* Mobile/remote interface
+* Messaging/notification interfaces
+
+The JARVIS core should remain shared across interfaces.
+
+---
+
+## Phase 10 — AI Operating Layer
 
 Long-term vision:
 
-JARVIS becomes a conversational operating layer capable of managing projects, workflows, automation, and intelligent decision support while remaining local-first and user-controlled.
+JARVIS becomes a conversational operating layer capable of managing projects, workflows, automation, personal productivity, software engineering, and intelligent decision support while remaining grounded, modular, local-first where practical, and user-controlled.
 
 ---
 
 # Design Philosophy
 
-Every implementation should strengthen at least one of these pillars:
+Every implementation should strengthen one or more of these pillars:
 
-* **Conversation** – Make interactions feel more natural.
+* **Conversation** – Make interactions more natural.
 * **Reasoning** – Improve understanding and problem solving.
-* **Memory** – Reduce repetition and maintain context.
-* **Action** – Help users accomplish real tasks.
+* **Memory** – Maintain useful context without unnecessary repetition.
+* **Action** – Help accomplish real tasks.
+* **Orchestration** – Connect intelligence, tools, memory, and external capabilities reliably.
 
-Features are only added when they move JARVIS closer to its long-term vision rather than simply increasing the feature list.
+Additional principles:
+
+* Build JARVIS-specific intelligence; integrate mature infrastructure.
+* Prefer deterministic tools over LLM guesses.
+* Never fabricate capabilities or observations.
+* Extend existing services before creating duplicate systems.
+* Keep components modular and replaceable.
+* Test major behavior independently.
+* Keep the user in control of consequential actions.
+* Favor maintainability over unnecessary complexity.
+
+Features should move JARVIS toward its long-term vision rather than simply increase the feature count.
 
 ---
 
@@ -360,8 +650,10 @@ Features are only added when they move JARVIS closer to its long-term vision rat
 
 Project documentation is maintained in the `docs` directory.
 
-* **JARVIS_MASTER_PLAN.md** — Long-term vision, architecture, engineering principles, and roadmap.
-* **ROADMAP.md** — Development milestones and current priorities.
+* **`JARVIS_MASTER_PLAN.md`** — Long-term vision, architecture, engineering principles, capability model, and strategic direction.
+* **`ROADMAP.md`** — Development phases, completed work, current priorities, and future milestones.
+
+These documents are living documents and should be updated when the architecture or development strategy materially changes.
 
 ---
 
@@ -369,6 +661,6 @@ Project documentation is maintained in the `docs` directory.
 
 **Chandler Pruett**
 
-Computer Science student and software developer building JARVIS as a long-term exploration of conversational AI, local language models, software architecture, and intelligent automation.
+Computer Science student and software developer building JARVIS as a long-term exploration of conversational AI, local language models, software architecture, intelligent automation, and personal AI systems.
 
-The project is developed incrementally with an emphasis on thoughtful architecture, maintainability, and creating an AI assistant that feels natural to interact with rather than simply responding to commands.
+The project is developed incrementally with an emphasis on thoughtful architecture, maintainability, grounded behavior, and creating an AI assistant that feels natural to interact with rather than simply responding to commands.
