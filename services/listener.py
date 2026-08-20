@@ -1,5 +1,6 @@
 import speech_recognition as sr
 from services.transcription_service import transcribe_audio
+import threading
 
 recognizer = sr.Recognizer()
 
@@ -60,3 +61,85 @@ def listen_for_wake_word():
         return "exit"
 
     return any(wake_word in speech for wake_word in WAKE_WORDS)
+
+class SpeechInterruptMonitor:
+    """
+    Monitors the microphone while JARVIS is speaking.
+
+    If the user starts speaking, the supplied callback
+    is triggered so the current speech can be interrupted.
+    """
+
+    def __init__(self, on_speech):
+        self.on_speech = on_speech
+
+        self.microphone = sr.Microphone()
+
+        self.stop_listening = None
+
+        self.running = False
+
+        self.lock = threading.Lock()
+
+    def _callback(
+        self,
+        recognizer_instance,
+        audio,
+    ):
+        if not self.running:
+            return
+
+        try:
+            text = transcribe_audio(audio)
+
+        except Exception as exc:
+
+            print(
+                "[Interrupt monitor] "
+                f"Transcription failed: {exc}"
+            )
+
+            return
+
+        text = text.strip()
+
+        if not text:
+            return
+
+        print(
+            f"[Interrupt monitor] You: {text}"
+        )
+
+        self.on_speech(text)
+
+    def start(self):
+        with self.lock:
+
+            if self.running:
+                return
+
+            self.running = True
+
+            self.stop_listening = (
+                recognizer.listen_in_background(
+                    self.microphone,
+                    self._callback,
+                    phrase_time_limit=3,
+                )
+            )
+
+    def stop(self):
+        with self.lock:
+
+            if not self.running:
+                return
+
+            self.running = False
+
+            stop_function = self.stop_listening
+            self.stop_listening = None
+
+        if stop_function:
+            stop_function(
+                wait_for_stop=True
+            )

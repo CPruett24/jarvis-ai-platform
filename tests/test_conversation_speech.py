@@ -232,3 +232,218 @@ def test_sentences_are_spoken_in_order():
     ]
 
     speech.stop()
+
+def test_interrupt_stops_current_speech(
+    monkeypatch,
+):
+
+    spoken = []
+
+    stopped = []
+
+    def fake_speak(text):
+
+        spoken.append(text)
+
+    def fake_stop_speaking():
+
+        stopped.append(True)
+
+    monkeypatch.setattr(
+        "services.conversation_speech.stop_speaking",
+        fake_stop_speaking,
+    )
+
+    speech = ConversationSpeech(
+        speak_function=fake_speak,
+    )
+
+    speech.add_chunk(
+        "This is the first sentence."
+    )
+
+    speech.interrupt()
+
+    assert stopped == [True]
+
+
+def test_interrupt_discards_queued_sentences(
+    monkeypatch,
+):
+
+    spoken = []
+
+    def fake_speak(text):
+
+        spoken.append(text)
+
+    speech = ConversationSpeech(
+        speak_function=fake_speak,
+    )
+
+    speech.add_chunk(
+        "First sentence. Second sentence."
+    )
+
+    speech.interrupt()
+
+    speech.wait_until_finished()
+
+    assert spoken == []
+
+
+def test_reset_allows_speech_after_interrupt(
+):
+
+    spoken = []
+
+    def fake_speak(text):
+
+        spoken.append(text)
+
+    speech = ConversationSpeech(
+        speak_function=fake_speak,
+    )
+
+    speech.interrupt()
+
+    speech.reset()
+
+    speech.add_chunk(
+        "New response."
+    )
+
+    speech.wait_until_finished()
+
+    assert spoken == [
+        "New response."
+    ]
+
+def test_interrupt_monitor_calls_callback(
+    monkeypatch,
+):
+
+    captured = {}
+
+    def fake_transcribe(audio):
+        return "stop jarvis"
+
+    def fake_callback(text):
+        captured["text"] = text
+
+    monkeypatch.setattr(
+        "services.listener.transcribe_audio",
+        fake_transcribe,
+    )
+
+    from services.listener import (
+        SpeechInterruptMonitor,
+    )
+
+    monitor = SpeechInterruptMonitor(
+        fake_callback,
+    )
+
+    # The microphone callback should only process
+    # audio while the interrupt monitor is running.
+    monitor.running = True
+
+    monitor._callback(
+        None,
+        object(),
+    )
+
+    assert captured["text"] == (
+        "stop jarvis"
+    )
+
+
+def test_interrupt_monitor_ignores_empty_transcription(
+    monkeypatch,
+):
+
+    called = []
+
+    def fake_transcribe(audio):
+        return ""
+
+    def fake_callback(text):
+        called.append(text)
+
+    monkeypatch.setattr(
+        "services.listener.transcribe_audio",
+        fake_transcribe,
+    )
+
+    from services.listener import (
+        SpeechInterruptMonitor,
+    )
+
+    monitor = SpeechInterruptMonitor(
+    fake_callback,
+    )
+
+    monitor.running = True
+
+    monitor._callback(
+        None,
+        object(),
+    )
+
+    assert called == []
+
+def test_interrupt_stops_current_speech_and_clears_queue():
+
+    spoken = []
+    stopped = []
+
+    def fake_speak(text):
+        spoken.append(text)
+
+    def fake_stop():
+        stopped.append(True)
+
+    speech = ConversationSpeech(
+        speak_function=fake_speak,
+        stop_function=fake_stop,
+    )
+
+    speech.add_chunk(
+        "This is the first sentence. "
+    )
+
+    speech.add_chunk(
+        "This is the second sentence. "
+    )
+
+    speech.interrupt()
+
+    assert stopped == [True]
+    assert speech.interrupted.is_set()
+
+
+def test_interrupted_conversation_does_not_queue_new_sentences():
+
+    spoken = []
+    stopped = []
+
+    def fake_speak(text):
+        spoken.append(text)
+
+    def fake_stop():
+        stopped.append(True)
+
+    speech = ConversationSpeech(
+        speak_function=fake_speak,
+        stop_function=fake_stop,
+    )
+
+    speech.interrupt()
+
+    result = speech.add_chunk(
+        "This should not be spoken."
+    )
+
+    assert result == []
+    assert spoken == []
+    assert stopped == [True]

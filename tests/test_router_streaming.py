@@ -48,6 +48,10 @@ def test_process_streaming_conversation(
 
             return []
 
+        def is_finished(self):
+
+            return True
+
         def wait_until_finished(self):
 
             return

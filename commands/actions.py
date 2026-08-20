@@ -2,6 +2,7 @@ from services.conversation_manager import debug_topic, set_topic
 from services.speaker import speak
 import subprocess
 from datetime import datetime
+from zoneinfo import ZoneInfo
 import webbrowser
 from services.memory_service import remember, get_memories, search_memories, delete_memory
 from services.workspace_service import open_workspace
@@ -449,9 +450,13 @@ def open_vscode():
 
 
 def current_time():
-    now = datetime.now().strftime("%I:%M %p")
-    speak(f"The current time is {now}")
+    now = datetime.now(
+        ZoneInfo("America/New_York")
+    ).strftime("%I:%M %p")
 
+    speak(
+        f"The current time is {now}"
+    )
 
 def open_github():
     speak("Opening GitHub")
