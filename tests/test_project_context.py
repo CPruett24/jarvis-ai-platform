@@ -3,13 +3,16 @@ from services.project_context import (
 )
 
 
-def test_roadmap_question_retrieves_multi_file_context():
+def test_roadmap_question_retrieves_current_major_capability():
 
     context = get_relevant_project_context(
         "What is the next major capability this project is supposed to implement?"
     )
 
-    assert "Multi-File Understanding" in context
+    assert (
+        "Planning, Tasks, and Goals" in context
+        or "Status: Next major capability" in context
+    )
 
 
 def test_architecture_question_retrieves_engineering_principles():

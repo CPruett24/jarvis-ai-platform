@@ -7,6 +7,7 @@ from services.status_service import update_status
 from commands.tool_manager import get_tool_descriptions
 from services.conversation_manager import get_topic
 from services.project_service import get_file_content
+from services.capability_service import get_capability_context
 
 def ask_ai(
     prompt,
@@ -23,6 +24,8 @@ def ask_ai(
     memory_context = get_memory_context()
 
     topic = get_topic()
+
+    capability_context = get_capability_context()
 
     conversation_context = ""
 
@@ -91,6 +94,23 @@ def ask_ai(
 
                 "\n\nThe following memories are facts "
                 "about the person you are speaking to:\n\n"
+
+                "\n\nCAPABILITY RULES:\n"
+                f"{capability_context}\n"
+                "\nNever invent capabilities, actions, access, "
+                "information, or results.\n"
+                "Never imply that you have information simply "
+                "because the user asked about it.\n"
+                "If a capability is unavailable, do not infer, "
+                "guess, or imply the current state of that system.\n"
+                "Do not say that something is empty, unavailable, "
+                "completed, scheduled, sent, checked, or found unless "
+                "you actually have the data or executed the capability "
+                "that establishes that fact.\n"
+                "Never claim that you checked a calendar, email, "
+                "messages, browser, smart-home device, or other "
+                "external system unless a real capability for that "
+                "system is available and was actually executed.\n"
 
                 f"{memory_context}"
 
@@ -359,6 +379,8 @@ def stream_ai_response(
 
     topic = get_topic()
 
+    capability_context = get_capability_context()
+
     conversation_context = ""
 
     if topic:
@@ -422,6 +444,23 @@ def stream_ai_response(
 
                 "\n\nThe following memories are facts "
                 "about the person you are speaking to:\n\n"
+
+                "\n\nCAPABILITY RULES:\n"
+                f"{capability_context}\n"
+                "\nNever invent capabilities, actions, access, "
+                "information, or results.\n"
+                "Never imply that you have information simply "
+                "because the user asked about it.\n"
+                "If a capability is unavailable, do not infer, "
+                "guess, or imply the current state of that system.\n"
+                "Do not say that something is empty, unavailable, "
+                "completed, scheduled, sent, checked, or found unless "
+                "you actually have the data or executed the capability "
+                "that establishes that fact.\n"
+                "Never claim that you checked a calendar, email, "
+                "messages, browser, smart-home device, or other "
+                "external system unless a real capability for that "
+                "system is available and was actually executed.\n"
 
                 f"{memory_context}"
 

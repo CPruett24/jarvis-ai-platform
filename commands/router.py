@@ -49,6 +49,17 @@ from services.project_state import (
     refresh_project_analysis_if_changed,
 )
 
+from services.capability_service import resolve_capability
+
+from services.capability_request import (
+    detect_capability_request,
+)
+
+from services.capability_service import (
+    explain_capability_availability,
+    get_registered_capability,
+)
+
 import queue
 import threading
 import time
@@ -376,6 +387,23 @@ def process(
 
     normalized_command = command.strip(".,!")
 
+    capability = resolve_capability(
+        normalized_command
+    )
+
+    if capability.available:
+
+        print(
+            "[Router] Deterministic capability:",
+            capability.tool_name,
+        )
+
+        execute_tool(
+            capability.tool_name
+        )
+
+        return
+
     intent = resolve_intent(command)
 
     print(
@@ -383,6 +411,61 @@ def process(
         f"{intent.type} "
         f"(confidence={intent.confidence:.2f})"
     )
+
+    # =========================================================
+    # DETERMINISTIC CAPABILITY
+    # =========================================================
+
+    capability = resolve_capability(
+        normalized_command
+    )
+
+    if capability.available:
+
+        print(
+            "[Router] Deterministic capability:",
+            capability.tool_name,
+        )
+
+        execute_tool(
+            capability.tool_name
+        )
+
+        return
+
+
+    # =========================================================
+    # HIGH-LEVEL CAPABILITY
+    # =========================================================
+
+    capability_request = (
+        detect_capability_request(
+            normalized_command
+        )
+    )
+
+    if capability_request.matched:
+
+        capability = (
+            get_registered_capability(
+                capability_request.capability_name
+            )
+        )
+
+        if capability and not capability.available:
+
+            print(
+                "[Router] Registered capability unavailable:",
+                capability_request.capability_name,
+            )
+
+            speak(
+                explain_capability_availability(
+                    capability_request.capability_name
+                )
+            )
+
+            return
 
     # =========================================================
     # CONVERSATION
