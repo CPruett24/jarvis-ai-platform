@@ -6,6 +6,10 @@ from services.project_service import (
     format_project_state,
 )
 
+from services.project_analysis_index import (
+    get_project_analysis_index,
+)
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DOCS_DIR = PROJECT_ROOT / "docs"
 
@@ -375,12 +379,49 @@ def get_project_context():
         max_sections=10,
     )
 
+def _format_project_analysis_summary(index):
+    """
+    Format a compact summary of the static project analysis.
+
+    Keep this intentionally small. Detailed code relationships
+    should be retrieved separately when needed.
+    """
+
+    files = index.get("files", {})
+    symbols = index.get("symbols", {})
+
+    lines = [
+        "===== PROJECT ANALYSIS =====",
+        f"Analyzed Python files: {len(files)}",
+        f"Indexed symbols: {len(symbols)}",
+    ]
+
+    if files:
+        lines.append("")
+        lines.append("Project files:")
+
+        for file_path in sorted(files):
+            lines.append(
+                f"- {file_path}"
+            )
+
+    if symbols:
+        lines.append("")
+        lines.append("Indexed functions/symbols:")
+
+        for file_path, function_name in sorted(symbols):
+            lines.append(
+                f"- {file_path}::{function_name}"
+            )
+
+    return "\n".join(lines)
+
 def get_full_project_context(question):
     """
     Build the complete reasoning context for a project-aware question.
 
     This combines relevant project documentation with the actual
-    current project state.
+    current project state and static project analysis.
     """
 
     documentation = get_relevant_project_context(
@@ -408,6 +449,22 @@ def get_full_project_context(question):
             "===== CURRENT PROJECT STATE =====\n"
             + project_state
         )
+
+    analysis = get_project_analysis_index()
+
+    if analysis:
+
+        project_analysis = (
+            _format_project_analysis_summary(
+                analysis
+            )
+        )
+
+        if project_analysis:
+
+            context_parts.append(
+                project_analysis
+            )
 
     return "\n\n".join(
         context_parts
