@@ -3,3 +3,4 @@ from models.goal import Goal
 from models.session import Session
 from models.conversation import Conversation
 from models.task import Task
+from models.plan import Plan
