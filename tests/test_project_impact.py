@@ -246,3 +246,99 @@ def test_analyze_file_impact_deduplicates_dependencies():
     assert len(dependencies) == len(
         set(dependencies)
     )
+
+def test_impact_analysis_refreshes_project_state(monkeypatch):
+
+    from commands import router
+
+    calls = []
+
+    def fake_refresh():
+        calls.append(True)
+
+        return {
+            "changed": False,
+            "changes": {
+                "added": [],
+                "modified": [],
+                "deleted": [],
+            },
+        }
+
+    monkeypatch.setattr(
+        router,
+        "refresh_project_analysis_if_changed",
+        fake_refresh,
+    )
+
+    monkeypatch.setattr(
+        router,
+        "explain_function_impact",
+        lambda command: {
+            "status": "not_found",
+            "message": "not found",
+        },
+    )
+
+    monkeypatch.setattr(
+        router,
+        "speak",
+        lambda response: None,
+    )
+
+    router.process(
+        "what would be affected if I change execute_tool"
+    )
+
+    assert calls == [True]
+
+
+def test_non_impact_command_does_not_refresh_project_state(
+    monkeypatch,
+):
+
+    from commands import router
+
+    calls = []
+
+    def fake_refresh():
+        calls.append(True)
+
+        return {
+            "changed": False,
+            "changes": {
+                "added": [],
+                "modified": [],
+                "deleted": [],
+            },
+        }
+
+    monkeypatch.setattr(
+        router,
+        "refresh_project_analysis_if_changed",
+        fake_refresh,
+    )
+
+    monkeypatch.setattr(
+        router,
+        "ask_ai",
+        lambda command: "hello",
+    )
+
+    monkeypatch.setattr(
+        router,
+        "speak",
+        lambda response: None,
+    )
+
+    monkeypatch.setattr(
+        router,
+        "detect_tool",
+        lambda command: "none",
+    )
+
+    router.process(
+        "hello"
+    )
+
+    assert calls == []

@@ -31,6 +31,10 @@ from services.project_impact import (
     explain_function_impact,
 )
 
+from services.project_state import (
+    refresh_project_analysis_if_changed,
+)
+
 
 ALIASES = {
     "open chat gpt": "open chatgpt",
@@ -70,6 +74,12 @@ def process(command):
     # ---------------------------------------------------------
 
     if intent.type == "impact_analysis":
+
+        refresh_project_analysis_if_changed()
+
+        result = explain_function_impact(
+            command
+        )
 
         result = explain_function_impact(
             command
