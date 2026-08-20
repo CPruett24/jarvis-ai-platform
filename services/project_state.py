@@ -68,3 +68,87 @@ def get_project_state():
             python_files
         ),
     }
+
+def get_project_snapshot():
+    """
+    Return a lightweight snapshot of the current project files.
+
+    Each file is represented by its filesystem signature so
+    changes can be detected without reading the file contents.
+    """
+
+    files = {}
+
+    for path in _project_files():
+
+        path = Path(path)
+
+        try:
+            stat = path.stat()
+        except OSError:
+            continue
+
+        files[str(path.resolve())] = (
+            stat.st_mtime_ns,
+            stat.st_size,
+        )
+
+    return {
+        "files": files,
+    }
+
+
+def compare_project_snapshots(
+    previous,
+    current,
+):
+    """
+    Compare two project snapshots.
+
+    Returns files that were:
+    - added
+    - modified
+    - deleted
+    """
+
+    previous_files = previous.get(
+        "files",
+        {},
+    )
+
+    current_files = current.get(
+        "files",
+        {},
+    )
+
+    previous_paths = set(
+        previous_files
+    )
+
+    current_paths = set(
+        current_files
+    )
+
+    added = sorted(
+        current_paths - previous_paths
+    )
+
+    deleted = sorted(
+        previous_paths - current_paths
+    )
+
+    modified = sorted(
+        path
+        for path in (
+            previous_paths
+            & current_paths
+        )
+        if previous_files[path]
+        != current_files[path]
+    )
+
+    return {
+        "added": added,
+        "modified": modified,
+        "deleted": deleted,
+    }

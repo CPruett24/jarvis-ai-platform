@@ -57,3 +57,90 @@ def test_project_state_python_file_count_matches():
     assert state["python_file_count"] == len(
         state["python_files"]
     )
+
+from services.project_state import (
+    get_project_snapshot,
+    compare_project_snapshots,
+)
+
+
+def test_identical_snapshots_have_no_changes():
+
+    snapshot = get_project_snapshot()
+
+    result = compare_project_snapshots(
+        snapshot,
+        snapshot,
+    )
+
+    assert result["added"] == []
+    assert result["modified"] == []
+    assert result["deleted"] == []
+
+
+def test_modified_file_is_detected():
+
+    previous = {
+        "files": {
+            "router.py": ("old-signature",)
+        }
+    }
+
+    current = {
+        "files": {
+            "router.py": ("new-signature",)
+        }
+    }
+
+    result = compare_project_snapshots(
+        previous,
+        current,
+    )
+
+    assert result["modified"] == [
+        "router.py"
+    ]
+
+
+def test_added_file_is_detected():
+
+    previous = {
+        "files": {}
+    }
+
+    current = {
+        "files": {
+            "router.py": ("signature",)
+        }
+    }
+
+    result = compare_project_snapshots(
+        previous,
+        current,
+    )
+
+    assert result["added"] == [
+        "router.py"
+    ]
+
+
+def test_deleted_file_is_detected():
+
+    previous = {
+        "files": {
+            "router.py": ("signature",)
+        }
+    }
+
+    current = {
+        "files": {}
+    }
+
+    result = compare_project_snapshots(
+        previous,
+        current,
+    )
+
+    assert result["deleted"] == [
+        "router.py"
+    ]
