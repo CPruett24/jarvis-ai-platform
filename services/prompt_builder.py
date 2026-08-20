@@ -2,6 +2,7 @@ def build_code_question_prompt(
     question,
     file_info,
     conversation_context=None,
+    project_context=None,
 ):
 
     prompt = (
@@ -9,6 +10,13 @@ def build_code_question_prompt(
         f"Question:\n{question}\n\n"
         f"Source Code:\n\n{file_info['content']}"
     )
+
+    if project_context:
+
+        prompt += (
+            "\n\nProject Context:\n"
+            f"{project_context}"
+        )
 
     if conversation_context:
 
