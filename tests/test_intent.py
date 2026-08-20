@@ -104,3 +104,47 @@ def test_code_question_resolves_to_code_question():
 
     clear_topic()
     clear_context()
+
+def test_impact_analysis_resolves_to_impact_analysis():
+
+    intent = resolve_intent(
+        "what would be affected if I change execute_tool"
+    )
+
+    assert intent.type == "impact_analysis"
+    assert intent.confidence == 0.95
+
+
+def test_impact_analysis_detects_dependencies():
+
+    intent = resolve_intent(
+        "what depends on execute_tool"
+    )
+
+    assert intent.type == "impact_analysis"
+
+
+def test_impact_analysis_detects_breakage_question():
+
+    intent = resolve_intent(
+        "what would break if I change router.py"
+    )
+
+    assert intent.type == "impact_analysis"
+
+def test_impact_analysis_detects_natural_change_question():
+
+    result = resolve_intent(
+        "would break if i modify router.py"
+    )
+
+    assert result.type == "impact_analysis"
+
+
+def test_impact_analysis_detects_edit_question():
+
+    result = resolve_intent(
+        "what could be affected if i edit router.py"
+    )
+
+    assert result.type == "impact_analysis"

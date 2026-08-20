@@ -239,3 +239,63 @@ def detect_tool(command):
     tool = response["message"]["content"].strip().splitlines()[0]
 
     return tool
+
+def explain_impact(
+    command,
+    impact_data,
+):
+    """
+    Explain verified project impact data using AI.
+
+    The AI is given project-analysis facts and should
+    reason about their engineering significance without
+    inventing project relationships.
+    """
+
+    response = chat(
+        model="llama3.1:8b",
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "You are JARVIS, an expert senior software engineer.\n\n"
+
+                    "You are analyzing verified static project-analysis data.\n\n"
+
+                    "The project-analysis system has already determined "
+                    "the relationships shown below.\n\n"
+
+                    "Do not invent callers, dependencies, execution paths, "
+                    "or project relationships that are not present in the data.\n\n"
+
+                    "Explain what the verified relationships mean from an "
+                    "engineering perspective.\n\n"
+
+                    "Discuss likely impact, risk, and what areas should be "
+                    "tested or reviewed.\n\n"
+
+                    "Clearly distinguish verified facts from reasonable "
+                    "engineering recommendations.\n\n"
+
+                    "Speak directly to the developer using 'you' and 'your'.\n"
+
+                    "Do not refer to the developer as 'the user', 'he', "
+                    "'him', or 'Chandler'.\n\n"
+
+                    "Keep the response concise but useful."
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"Original question:\n"
+                    f"{command}\n\n"
+
+                    f"Verified project impact data:\n"
+                    f"{json.dumps(impact_data, indent=2)}"
+                ),
+            },
+        ],
+    )
+
+    return response["message"]["content"]

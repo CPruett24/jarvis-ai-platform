@@ -329,3 +329,17 @@ def format_project_state(state):
             )
 
     return "\n".join(lines)
+
+def _normalize_identifier(text):
+    """
+    Normalize identifiers for comparison.
+    """
+
+    text = text.lower()
+
+    return (
+        text
+        .replace("_", "")
+        .replace("-", "")
+        .replace(" ", "")
+    )

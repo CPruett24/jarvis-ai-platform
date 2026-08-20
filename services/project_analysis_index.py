@@ -46,6 +46,28 @@ def build_project_analysis_index():
         functions = _extract_functions(tree)
         imports = _extract_imports(tree)
 
+        module_calls = _extract_calls(tree)
+
+        resolved_module_calls = []
+
+        for call in module_calls:
+
+            resolved = _resolve_call(
+                call,
+                functions,
+                imports,
+            )
+
+            if resolved is None:
+                continue
+
+            resolved_module_calls.append(
+                {
+                    "call": call,
+                    "target": resolved,
+                }
+            )
+
         normalized_file = _normalize_path(file_path)
 
         file_data = {
@@ -53,6 +75,65 @@ def build_project_analysis_index():
             "functions": {},
             "imports": imports,
         }
+
+        module_key = (
+            normalized_file,
+            "<module>",
+        )
+
+        index["symbols"][
+            module_key
+        ] = {
+            "file": normalized_file,
+            "function": "<module>",
+        }
+
+        index["calls"][
+            module_key
+        ] = resolved_module_calls
+
+        for resolved in resolved_module_calls:
+
+            target = resolved["target"]
+
+            if target["kind"] == "local":
+
+                target_file = normalized_file
+
+            elif target["kind"] == "project_function":
+
+                target_file = _normalize_path(
+                    target["path"]
+                )
+
+            else:
+                continue
+
+            target_key = (
+                target_file,
+                target["function"],
+            )
+
+            index["reverse_calls"].setdefault(
+                target_key,
+                [],
+            )
+
+            caller = {
+                "file": normalized_file,
+                "function": "<module>",
+                "call": resolved["call"],
+            }
+
+            if caller not in index[
+                "reverse_calls"
+            ][target_key]:
+
+                index[
+                    "reverse_calls"
+                ][target_key].append(
+                    caller
+                )
 
         for function_name, function_node in functions.items():
 

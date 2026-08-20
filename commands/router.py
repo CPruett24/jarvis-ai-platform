@@ -22,6 +22,14 @@ from services.conversation_manager import get_topic, get_conversation_context, r
 from services.project_service import get_file_content
 from services.code_assistant import answer_question
 from services.intent_resolver import resolve_intent
+from services.ai_service import (
+    ask_ai,
+    detect_tool,
+    explain_impact,
+)
+from services.project_impact import (
+    explain_function_impact,
+)
 
 
 ALIASES = {
@@ -56,6 +64,61 @@ def process(command):
     command = ALIASES.get(command, command)
 
     intent = resolve_intent(command)
+
+    # ---------------------------------------------------------
+    # Impact Analysis
+    # ---------------------------------------------------------
+
+    if intent.type == "impact_analysis":
+
+        result = explain_function_impact(
+            command
+        )
+
+        if result["status"] == "not_found":
+
+            response = result["message"]
+
+            speak(response)
+
+            return
+
+        if result["status"] == "ambiguous":
+
+            candidates = result["candidates"]
+
+            response = (
+                "I found multiple possible targets. "
+                "Please specify which one you mean:\n\n"
+            )
+
+            for candidate in candidates:
+
+                if candidate["type"] == "function":
+
+                    response += (
+                        f"- {candidate['file']}::"
+                        f"{candidate['function']}()\n"
+                    )
+
+                else:
+
+                    response += (
+                        f"- {candidate['file']}\n"
+                    )
+
+            speak(response)
+
+            return
+
+        response = explain_impact(
+            command,
+            result,
+        )
+
+        speak(response)
+
+        return
 
     print(
         f"[Router] Intent: "

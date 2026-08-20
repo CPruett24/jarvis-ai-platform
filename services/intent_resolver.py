@@ -16,12 +16,92 @@ from services.conversation_manager import (
 
 from services.command_parser import parse_command
 
+IMPACT_ANALYSIS_PHRASES = {
+    "what would be affected",
+    "what could be affected",
+    "what would break",
+    "what could break",
+    "what depends on",
+    "what uses",
+    "who calls",
+    "what calls",
+    "what is the impact",
+    "what's the impact",
+    "impact of changing",
+    "impact of modifying",
+}
+
+def is_impact_analysis_request(command):
+
+    command = command.lower().strip()
+
+    if any(
+        phrase in command
+        for phrase in IMPACT_ANALYSIS_PHRASES
+    ):
+        return True
+
+    impact_words = (
+        "affected",
+        "affect",
+        "break",
+        "impact",
+        "depends",
+        "dependency",
+        "dependencies",
+        "calls",
+        "callers",
+        "uses",
+        "used by",
+    )
+
+    change_words = (
+        "change",
+        "changing",
+        "changed",
+        "modify",
+        "modifying",
+        "modified",
+        "edit",
+        "editing",
+        "update",
+        "updating",
+    )
+
+    has_impact_language = any(
+        word in command
+        for word in impact_words
+    )
+
+    has_change_language = any(
+        word in command
+        for word in change_words
+    )
+
+    return (
+        has_impact_language
+        and has_change_language
+    )
 
 def resolve_intent(command):
 
     command = command.lower().strip()
 
     topic = get_topic()
+
+    # ---------------------------------------------------------
+    # Impact analysis
+    # ---------------------------------------------------------
+
+    if is_impact_analysis_request(command):
+
+        return Intent(
+            type="impact_analysis",
+            confidence=0.95,
+            metadata={
+                "topic": topic,
+            },
+        )
 
     # ---------------------------------------------------------
     # Code conversation
