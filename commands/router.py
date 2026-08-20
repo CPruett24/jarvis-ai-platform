@@ -1,4 +1,8 @@
-from services.ai_service import ask_ai, detect_tool
+from services.ai_service import (
+    ask_ai,
+    detect_tool,
+    stream_ai_response,
+)
 from services.speaker import speak
 from services.workspace_service import open_workspace
 from commands.static_commands import COMMANDS
@@ -25,7 +29,11 @@ from services.intent_resolver import resolve_intent
 from services.ai_service import (
     ask_ai,
     detect_tool,
+    stream_ai_response,
     explain_impact,
+)
+from services.conversation_speech import (
+    ConversationSpeech,
 )
 from services.project_impact import (
     explain_function_impact,
@@ -60,6 +68,56 @@ ALIASES = {
     "current project": "what project am i in",
 }
 
+def process_streaming_conversation(
+    command,
+):
+    """
+    Process a conversational AI response using
+    Ollama streaming and queued sentence-level TTS.
+    """
+
+    print(
+        "Calling streaming conversation AI..."
+    )
+
+    speech = ConversationSpeech()
+
+    full_response = ""
+
+    try:
+
+        for chunk in stream_ai_response(
+            command
+        ):
+
+            full_response += chunk
+
+            speech.add_chunk(
+                chunk
+            )
+
+        speech.finish()
+
+        speech.wait_until_finished()
+
+        print(
+            "AI returned:",
+            full_response,
+        )
+
+        return full_response
+
+    except Exception as error:
+
+        print(
+            "[Router] Streaming conversation failed:",
+            error,
+        )
+
+        speech.stop()
+
+        raise
+
 def process(command):
     command = command.lower()
 
@@ -68,6 +126,14 @@ def process(command):
     command = ALIASES.get(command, command)
 
     intent = resolve_intent(command)
+
+    if intent.type == "conversation":
+
+        process_streaming_conversation(
+            command
+        )
+
+        return
 
     # ---------------------------------------------------------
     # Impact Analysis

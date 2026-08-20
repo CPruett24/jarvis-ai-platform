@@ -8,12 +8,16 @@ from commands.tool_manager import get_tool_descriptions
 from services.conversation_manager import get_topic
 from services.project_service import get_file_content
 
-def ask_ai(prompt):
-
+def ask_ai(
+    prompt,
+    stream=False,
+    on_chunk=None,
+):
     add_message(
-    "user",
-    prompt
+        "user",
+        prompt,
     )
+
     update_status("thinking")
 
     memory_context = get_memory_context()
@@ -27,11 +31,11 @@ def ask_ai(prompt):
         if topic["type"] == "file":
 
             conversation_context = (
-                f"\n\nCurrent conversation topic:\n"
+                "\n\nCurrent conversation topic:\n"
                 f"You are discussing the file "
                 f"{topic['filename']}.\n"
-                f"The user may ask follow-up questions "
-                f"about this file without naming it again."
+                "The user may ask follow-up questions "
+                "about this file without naming it again."
             )
 
     print("\nMEMORY CONTEXT:")
@@ -59,7 +63,8 @@ def ask_ai(prompt):
         {
             "role": "system",
             "content": (
-                "You are JARVIS, a personal AI assistant created for your user."
+                "You are JARVIS, a personal AI assistant "
+                "created for your user."
 
                 "\n\nYou are speaking directly to the user."
 
@@ -69,17 +74,23 @@ def ask_ai(prompt):
 
                 "\nDo not call the user 'Chandler'."
 
-                "\nDo not use phrases like 'he', 'him', 'the user', or 'Chandler' when talking about the person you are speaking to."
+                "\nDo not use phrases like 'he', 'him', "
+                "'the user', or 'Chandler' when talking "
+                "about the person you are speaking to."
 
-                "\n\nWhen discussing stored memories, phrase them naturally."
+                "\n\nWhen discussing stored memories, "
+                "phrase them naturally."
 
                 "\nExample: say 'Your project deadline is Friday.'"
 
-                "\nExample: say 'You told me your project deadline is Friday.'"
+                "\nExample: say 'You told me your project "
+                "deadline is Friday.'"
 
-                "\nDo not say \"User's name's project deadline is Friday.\""
+                "\nDo not say \"User's name's project "
+                "deadline is Friday.\""
 
-                "\n\nThe following memories are facts about the person you are speaking to:\n\n"
+                "\n\nThe following memories are facts "
+                "about the person you are speaking to:\n\n"
 
                 f"{memory_context}"
 
@@ -90,21 +101,48 @@ def ask_ai(prompt):
         }
     ]
 
-    messages.extend(get_history())
+    messages.extend(
+        get_history()
+    )
 
     response = chat(
         model="llama3.1:8b",
         messages=messages,
+        stream=stream,
     )
 
-    answer = response["message"]["content"]
+    if not stream:
+
+        answer = response["message"]["content"]
+
+        add_message(
+            "assistant",
+            answer,
+        )
+
+        return answer
+
+    full_response = ""
+
+    for chunk in response:
+
+        text = chunk["message"]["content"]
+
+        if not text:
+            continue
+
+        full_response += text
+
+        if on_chunk:
+
+            on_chunk(text)
 
     add_message(
-    "assistant",
-    answer
+        "assistant",
+        full_response,
     )
 
-    return answer
+    return full_response
 
 def explain_code(file_info, depth=1,):
     if depth == 1:
@@ -299,3 +337,136 @@ def explain_impact(
     )
 
     return response["message"]["content"]
+
+def stream_ai_response(
+    prompt,
+    on_chunk=None,
+):
+    """
+    Stream a conversational AI response using the same
+    memory, conversation-topic, code, history, and system
+    prompt logic used by ask_ai().
+    """
+
+    add_message(
+        "user",
+        prompt,
+    )
+
+    update_status("thinking")
+
+    memory_context = get_memory_context()
+
+    topic = get_topic()
+
+    conversation_context = ""
+
+    if topic:
+
+        if topic["type"] == "file":
+
+            conversation_context = (
+                "\n\nCurrent conversation topic:\n"
+                f"You are discussing the file "
+                f"{topic['filename']}.\n"
+                "The user may ask follow-up questions "
+                "about this file without naming it again."
+            )
+
+    code_context = ""
+
+    if topic:
+
+        if topic["type"] == "file":
+
+            file_info = get_file_content(
+                topic["filename"]
+            )
+
+            if file_info:
+
+                code_context = (
+                    "\n\nCurrent file contents:\n\n"
+                    f"{file_info['content']}"
+                )
+
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are JARVIS, a personal AI assistant "
+                "created for your user."
+
+                "\n\nYou are speaking directly to the user."
+
+                "\nAlways address the user as 'you' and 'your'."
+
+                "\nDo not refer to the user in the third person."
+
+                "\nDo not call the user 'Chandler'."
+
+                "\nDo not use phrases like 'he', 'him', "
+                "'the user', or 'Chandler' when talking "
+                "about the person you are speaking to."
+
+                "\n\nWhen discussing stored memories, "
+                "phrase them naturally."
+
+                "\nExample: say 'Your project deadline is Friday.'"
+
+                "\nExample: say 'You told me your project "
+                "deadline is Friday.'"
+
+                "\nDo not say \"User's name's project "
+                "deadline is Friday.\""
+
+                "\n\nThe following memories are facts "
+                "about the person you are speaking to:\n\n"
+
+                f"{memory_context}"
+
+                f"{conversation_context}"
+
+                f"{code_context}"
+            ),
+        }
+    ]
+
+    messages.extend(
+        get_history()
+    )
+
+    response = chat(
+        model="llama3.1:8b",
+        messages=messages,
+        stream=True,
+    )
+
+    full_response = ""
+
+    for chunk in response:
+
+        try:
+            content = chunk["message"]["content"]
+
+        except (TypeError, KeyError):
+
+            content = chunk.message.content
+
+        if not content:
+            continue
+
+        full_response += content
+
+        if on_chunk:
+            on_chunk(content)
+
+        yield content
+
+    if full_response:
+        add_message(
+            "assistant",
+            full_response,
+        )
+
+    update_status("listening")
