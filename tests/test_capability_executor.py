@@ -64,3 +64,97 @@ def test_capability_without_tool():
     assert result.success is False
     assert result.capability == "memory"
     assert result.error is not None
+
+def test_dict_tool_result_becomes_structured_data(monkeypatch):
+
+    from services import capability_executor
+
+    class FakeTool:
+
+        def __call__(self):
+            return {
+                "events": [
+                    {
+                        "title": "Team meeting",
+                        "time": "2:00 PM",
+                    }
+                ],
+                "count": 1,
+            }
+
+    monkeypatch.setattr(
+        capability_executor,
+        "get_capability",
+        lambda name: type(
+            "Capability",
+            (),
+            {
+                "available": True,
+                "tool_name": "fake_tool",
+                "reason": None,
+                "name": "Calendar",
+            },
+        )(),
+    )
+
+    monkeypatch.setattr(
+        capability_executor,
+        "get_tool",
+        lambda name: {
+            "function": FakeTool(),
+        },
+    )
+
+    result = capability_executor.execute_capability(
+        "calendar"
+    )
+
+    assert result.success is True
+
+    assert result.data == {
+        "events": [
+            {
+                "title": "Team meeting",
+                "time": "2:00 PM",
+            }
+        ],
+        "count": 1,
+    }
+
+
+def test_non_dict_tool_result_uses_result_key(monkeypatch):
+
+    from services import capability_executor
+
+    monkeypatch.setattr(
+        capability_executor,
+        "get_capability",
+        lambda name: type(
+            "Capability",
+            (),
+            {
+                "available": True,
+                "tool_name": "fake_tool",
+                "reason": None,
+                "name": "Test",
+            },
+        )(),
+    )
+
+    monkeypatch.setattr(
+        capability_executor,
+        "get_tool",
+        lambda name: {
+            "function": lambda: "hello world",
+        },
+    )
+
+    result = capability_executor.execute_capability(
+        "test"
+    )
+
+    assert result.success is True
+
+    assert result.data == {
+        "result": "hello world"
+    }

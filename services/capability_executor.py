@@ -94,9 +94,13 @@ def execute_capability(
             message=(
                 f"{capability.name} executed successfully."
             ),
-            data={
-                "result": result
-            },
+            data=(
+                result
+                if isinstance(result, dict)
+                else {
+                    "result": result
+                }
+            ),
         )
 
     except Exception as exc:
