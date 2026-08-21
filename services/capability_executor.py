@@ -1,6 +1,9 @@
 from dataclasses import dataclass, field
 
 from services.capability_registry import get_capability
+from services.capability_state import (
+    is_capability_enabled_for,
+)
 from commands.tool_manager import get_tool
 from models.tool_request import ToolRequest
 
@@ -25,8 +28,8 @@ def execute_capability(
     """
     Execute an available registered capability.
 
-    This layer sits between the capability registry and the
-    existing tool manager.
+    This layer sits between the capability registry,
+    capability state manager, and existing tool manager.
     """
 
     capability = get_capability(
@@ -50,6 +53,17 @@ def execute_capability(
                 capability.reason
                 or "Capability is not currently available."
             ),
+        )
+
+    if not is_capability_enabled_for(
+        capability_name,
+        capability,
+    ):
+
+        return CapabilityExecutionResult(
+            success=False,
+            capability=capability_name,
+            error="Capability is currently disabled.",
         )
 
     if not capability.tool_name:
@@ -88,19 +102,23 @@ def execute_capability(
             **request.arguments
         )
 
+        if isinstance(result, dict):
+
+            data = result
+
+        else:
+
+            data = {
+                "result": result
+            }
+
         return CapabilityExecutionResult(
             success=True,
             capability=capability_name,
             message=(
                 f"{capability.name} executed successfully."
             ),
-            data=(
-                result
-                if isinstance(result, dict)
-                else {
-                    "result": result
-                }
-            ),
+            data=data,
         )
 
     except Exception as exc:

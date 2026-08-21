@@ -158,3 +158,46 @@ def test_non_dict_tool_result_uses_result_key(monkeypatch):
     assert result.data == {
         "result": "hello world"
     }
+
+def test_disabled_capability_cannot_execute(monkeypatch):
+
+    from services import capability_executor
+    from services.capability_state import (
+        disable_capability,
+        enable_capability,
+    )
+
+    disable_capability(
+        "current_time"
+    )
+
+    result = capability_executor.execute_capability(
+        "current_time"
+    )
+
+    assert result.success is False
+    assert result.capability == "current_time"
+    assert result.error is not None
+    assert "disabled" in result.error.lower()
+
+    enable_capability(
+        "current_time"
+    )
+
+
+def test_enabled_capability_can_execute(monkeypatch):
+
+    from services import capability_executor
+    from services.capability_state import (
+        enable_capability,
+    )
+
+    enable_capability(
+        "current_time"
+    )
+
+    result = capability_executor.execute_capability(
+        "current_time"
+    )
+
+    assert result.success is True

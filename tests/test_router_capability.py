@@ -59,6 +59,7 @@ def test_available_high_level_capability_is_executed(
         success = True
         message = "Calendar capability executed."
         error = None
+        data = {}
 
     def fake_execute_capability(
         capability_name,
@@ -71,6 +72,12 @@ def test_available_high_level_capability_is_executed(
 
     def fake_speak(text):
         spoken.append(text)
+
+    monkeypatch.setattr(
+        router,
+        "is_capability_available",
+        lambda capability_name: True,
+    )
 
     monkeypatch.setattr(
         router,
@@ -95,7 +102,6 @@ def test_available_high_level_capability_is_executed(
     assert spoken == [
         "Calendar capability executed."
     ]
-
 
 def test_normal_conversation_does_not_trigger_capability(
     monkeypatch,
@@ -183,3 +189,48 @@ def test_incidental_capability_language_does_not_trigger_capability(
     assert streamed == [
         "tell me about organizing my day"
     ]
+
+def test_disabled_capability_is_not_executed(monkeypatch):
+
+    from commands import router
+    from services.capability_state import (
+        disable_capability,
+        enable_capability,
+    )
+
+    executed = []
+
+    monkeypatch.setattr(
+        router,
+        "execute_capability",
+        lambda name: (
+            executed.append(name)
+            or type(
+                "Result",
+                (),
+                {
+                    "success": True,
+                    "message": "should not execute",
+                    "error": None,
+                },
+            )()
+        ),
+    )
+
+    disable_capability(
+        "calendar"
+    )
+
+    try:
+
+        router.process(
+            "what's on my calendar"
+        )
+
+        assert executed == []
+
+    finally:
+
+        enable_capability(
+            "calendar"
+        )

@@ -67,6 +67,10 @@ from services.capability_response import (
     format_capability_result,
 )
 
+from services.capability_state import (
+    is_capability_available,
+)
+
 import queue
 import threading
 import time
@@ -431,38 +435,69 @@ def process(
 
     if capability_request.matched:
 
-        print(
-            "[Router] High-level capability:",
-            capability_request.capability_name,
-        )
-
-        result = execute_capability(
+        capability_name = (
             capability_request.capability_name
         )
 
-        response = format_capability_result(
-            result
+        print(
+            "[Router] High-level capability:",
+            capability_name,
+        )
+
+        if not is_capability_available(
+            capability_name
+        ):
+
+            print(
+                "[Router] Capability unavailable or disabled:",
+                capability_name,
+            )
+
+            speak(
+                explain_capability_availability(
+                    capability_name
+                )
+            )
+
+            return
+
+        result = execute_capability(
+            capability_name
         )
 
         if result.success:
 
             print(
                 "[Router] Capability completed:",
-                capability_request.capability_name,
+                capability_name,
             )
 
-        else:
+            response = format_capability_result(
+                result
+            )
+
+            if response:
+
+                speak(
+                    response
+                )
+
+            return
+
+        if result.error:
 
             print(
                 "[Router] Capability failed:",
                 result.error,
             )
 
-        speak(
-            response
-        )
+            speak(
+                format_capability_result(
+                    result
+                )
+            )
 
-        return
+            return
 
     # =========================================================
     # CONVERSATION
