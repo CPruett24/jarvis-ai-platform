@@ -63,6 +63,10 @@ from services.capability_executor import (
     execute_capability,
 )
 
+from services.capability_response import (
+    format_capability_result,
+)
+
 import queue
 import threading
 import time
@@ -436,30 +440,29 @@ def process(
             capability_request.capability_name
         )
 
+        response = format_capability_result(
+            result
+        )
+
         if result.success:
 
-            if result.message:
+            print(
+                "[Router] Capability completed:",
+                capability_request.capability_name,
+            )
 
-                speak(
-                    result.message
-                )
-
-            return
-
-        if result.error:
+        else:
 
             print(
-                "[Router] Capability unavailable:",
+                "[Router] Capability failed:",
                 result.error,
             )
 
-            speak(
-                explain_capability_availability(
-                    capability_request.capability_name
-                )
-            )
+        speak(
+            response
+        )
 
-            return
+        return
 
     # =========================================================
     # CONVERSATION
