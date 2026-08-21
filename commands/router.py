@@ -49,8 +49,6 @@ from services.project_state import (
     refresh_project_analysis_if_changed,
 )
 
-from services.capability_service import resolve_capability
-
 from services.capability_request import (
     detect_capability_request,
 )
@@ -58,6 +56,11 @@ from services.capability_request import (
 from services.capability_service import (
     explain_capability_availability,
     get_registered_capability,
+    resolve_capability,
+)
+
+from services.capability_executor import (
+    execute_capability,
 )
 
 import queue
@@ -413,28 +416,6 @@ def process(
     )
 
     # =========================================================
-    # DETERMINISTIC CAPABILITY
-    # =========================================================
-
-    capability = resolve_capability(
-        normalized_command
-    )
-
-    if capability.available:
-
-        print(
-            "[Router] Deterministic capability:",
-            capability.tool_name,
-        )
-
-        execute_tool(
-            capability.tool_name
-        )
-
-        return
-
-
-    # =========================================================
     # HIGH-LEVEL CAPABILITY
     # =========================================================
 
@@ -446,17 +427,30 @@ def process(
 
     if capability_request.matched:
 
-        capability = (
-            get_registered_capability(
-                capability_request.capability_name
-            )
+        print(
+            "[Router] High-level capability:",
+            capability_request.capability_name,
         )
 
-        if capability and not capability.available:
+        result = execute_capability(
+            capability_request.capability_name
+        )
+
+        if result.success:
+
+            if result.message:
+
+                speak(
+                    result.message
+                )
+
+            return
+
+        if result.error:
 
             print(
-                "[Router] Registered capability unavailable:",
-                capability_request.capability_name,
+                "[Router] Capability unavailable:",
+                result.error,
             )
 
             speak(
