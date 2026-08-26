@@ -234,3 +234,162 @@ def test_disabled_capability_is_not_executed(monkeypatch):
         enable_capability(
             "calendar"
         )
+
+def test_capability_management_list(
+    monkeypatch,
+):
+
+    from commands import router
+
+    spoken = []
+
+    monkeypatch.setattr(
+        router,
+        "speak",
+        lambda text: spoken.append(text),
+    )
+
+    router.process(
+        "what can you do"
+    )
+
+    assert spoken
+
+    assert (
+        "Currently available:"
+        in spoken[0]
+    )
+
+
+def test_capability_management_disabled(
+    monkeypatch,
+):
+
+    from commands import router
+
+    spoken = []
+
+    monkeypatch.setattr(
+        router,
+        "speak",
+        lambda text: spoken.append(text),
+    )
+
+    router.process(
+        "what capabilities are disabled"
+    )
+
+    assert spoken
+
+    assert (
+        "disabled"
+        in spoken[0].lower()
+    )
+
+
+def test_capability_management_unavailable(
+    monkeypatch,
+):
+
+    from commands import router
+
+    spoken = []
+
+    monkeypatch.setattr(
+        router,
+        "speak",
+        lambda text: spoken.append(text),
+    )
+
+    router.process(
+        "what capabilities are unavailable"
+    )
+
+    assert spoken
+
+    assert (
+        "unavailable"
+        in spoken[0].lower()
+    )
+
+
+def test_capability_management_status(
+    monkeypatch,
+):
+
+    from commands import router
+
+    spoken = []
+
+    monkeypatch.setattr(
+        router,
+        "speak",
+        lambda text: spoken.append(text),
+    )
+
+    router.process(
+        "what is the status of my capabilities"
+    )
+
+    assert spoken
+
+    assert (
+        "registered capabilities"
+        in spoken[0].lower()
+    )
+
+def test_capability_management_calendar_details(
+    monkeypatch,
+):
+
+    from commands import router
+
+    spoken = []
+
+    monkeypatch.setattr(
+        router,
+        "speak",
+        lambda text: spoken.append(text),
+    )
+
+    router.process(
+        "why can't you use my calendar"
+    )
+
+    assert spoken
+
+    assert (
+        "Calendar isn't currently available."
+        in spoken[0]
+    )
+
+    assert (
+        "not been configured"
+        in spoken[0]
+    )
+
+
+def test_capability_management_available_details(
+    monkeypatch,
+):
+
+    from commands import router
+
+    spoken = []
+
+    monkeypatch.setattr(
+        router,
+        "speak",
+        lambda text: spoken.append(text),
+    )
+
+    router.process(
+        "is current time available"
+    )
+
+    assert spoken
+
+    assert (
+        "Current Time is available and enabled."
+        in spoken[0]
+    )

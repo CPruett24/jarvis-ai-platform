@@ -135,6 +135,7 @@ def disable_capability(
 
     return True
 
+
 def is_capability_enabled_for(
     capability_name,
     capability,

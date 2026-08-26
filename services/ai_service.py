@@ -8,6 +8,78 @@ from commands.tool_manager import get_tool_descriptions
 from services.conversation_manager import get_topic
 from services.project_service import get_file_content
 from services.capability_service import get_capability_context
+from services.agents.hermes_acp import (
+    HermesACPConnection,
+)
+
+_hermes_connection = None
+_hermes_session_id = None
+
+
+def get_hermes_connection():
+    global _hermes_connection
+
+    if _hermes_connection is None:
+        _hermes_connection = HermesACPConnection()
+
+    _hermes_connection.start()
+
+    return _hermes_connection
+
+
+def get_hermes_session():
+    global _hermes_session_id
+
+    hermes = get_hermes_connection()
+
+    if _hermes_session_id is None:
+        _hermes_session_id = hermes.create_session(
+            cwd=None,
+        )
+
+    return hermes, _hermes_session_id
+
+def format_hermes_messages(messages):
+    """
+    Convert JARVIS's structured conversation messages into
+    a single prompt suitable for Hermes ACP.
+    """
+
+    parts = []
+
+    for message in messages:
+
+        role = message.get(
+            "role",
+            "user",
+        )
+
+        content = message.get(
+            "content",
+            "",
+        )
+
+        if not content:
+            continue
+
+        if role == "system":
+            label = "SYSTEM INSTRUCTIONS"
+
+        elif role == "user":
+            label = "USER"
+
+        elif role == "assistant":
+            label = "ASSISTANT"
+
+        else:
+            label = role.upper()
+
+        parts.append(
+            f"--- {label} ---\n"
+            f"{content}"
+        )
+
+    return "\n\n".join(parts)
 
 def ask_ai(
     prompt,
@@ -445,6 +517,16 @@ def stream_ai_response(
                 "\n\nThe following memories are facts "
                 "about the person you are speaking to:\n\n"
 
+                "\n\nCONVERSATION MODE:\n"
+                "When answering normal conversational questions, answer "
+                "directly and naturally.\n"
+                "Do not use tools, code execution, terminal commands, "
+                "browser tools, or other external actions for simple "
+                "questions that you can answer directly.\n"
+                "Only use a tool when the user's request genuinely "
+                "requires an external action or information that cannot "
+                "be answered from the conversation context.\n"
+
                 "\n\nCAPABILITY RULES:\n"
                 f"{capability_context}\n"
                 "\nNever invent capabilities, actions, access, "
@@ -475,22 +557,19 @@ def stream_ai_response(
         get_history()
     )
 
-    response = chat(
-        model="llama3.1:8b",
-        messages=messages,
-        stream=True,
+    hermes, session_id = get_hermes_session()
+
+    hermes_prompt = format_hermes_messages(
+        messages
     )
 
     full_response = ""
 
-    for chunk in response:
-
-        try:
-            content = chunk["message"]["content"]
-
-        except (TypeError, KeyError):
-
-            content = chunk.message.content
+    for content in hermes.stream_prompt(
+        session_id,
+        hermes_prompt,
+        timeout=300,
+    ):
 
         if not content:
             continue

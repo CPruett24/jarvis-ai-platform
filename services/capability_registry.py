@@ -200,6 +200,19 @@ CAPABILITY_REGISTRY = {
         available=False,
         reason="The required external integrations are not configured yet.",
     ),
+
+    "hermes_agent": Capability(
+        name="Hermes Agent",
+        description=(
+            "Delegate complex research, browser, computer, "
+            "terminal, and multi-step tasks to the Hermes agent."
+        ),
+        category="agent",
+        available=False,
+        reason=(
+            "Hermes has not been installed or configured yet."
+        ),
+    ),
 }
 
 

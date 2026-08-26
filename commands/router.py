@@ -51,6 +51,7 @@ from services.project_state import (
 
 from services.capability_request import (
     detect_capability_request,
+    detect_capability_management_request,
 )
 
 from services.capability_service import (
@@ -69,6 +70,14 @@ from services.capability_response import (
 
 from services.capability_state import (
     is_capability_available,
+)
+
+from services.capability_manager import (
+    get_capability_summary,
+    get_capability_details,
+    get_available_capability_names,
+    get_disabled_capability_names,
+    get_unavailable_capability_names,
 )
 
 import queue
@@ -105,6 +114,81 @@ ALIASES = {
 
     "current project": "what project am i in",
 }
+
+def try_basic_arithmetic(command):
+    """
+    Handle simple arithmetic directly in JARVIS.
+
+    This prevents the conversational AI from using external
+    tools for calculations and keeps deterministic operations
+    deterministic.
+    """
+
+    if not command:
+        return None
+
+    text = command.lower().strip()
+
+    # Normalize common spoken-math phrases.
+    replacements = {
+        "what is": "",
+        "what's": "",
+        "calculate": "",
+        "how much is": "",
+        "tell me": "",
+    }
+
+    for phrase, replacement in replacements.items():
+        if text.startswith(phrase):
+            text = text[len(phrase):].strip()
+
+    text = (
+        text
+        .replace("plus", "+")
+        .replace("minus", "-")
+        .replace("times", "*")
+        .replace("multiplied by", "*")
+        .replace("divided by", "/")
+    )
+
+    # Only allow simple numeric arithmetic.
+    allowed = set(
+        "0123456789+-*/(). "
+    )
+
+    if not text:
+        return None
+
+    if any(
+        character not in allowed
+        for character in text
+    ):
+        return None
+
+    # Require at least one operator.
+    if not any(
+        operator in text
+        for operator in "+-*/"
+    ):
+        return None
+
+    try:
+        result = eval(
+            text,
+            {
+                "__builtins__": {}
+            },
+            {},
+        )
+
+    except Exception:
+        return None
+
+    if isinstance(result, float):
+        if result.is_integer():
+            result = int(result)
+
+    return str(result)
 
 def _stream_with_interrupt(
     command,
@@ -330,6 +414,154 @@ def normalize_interruption(command):
 
     return command
 
+def format_capability_management_response(
+    request,
+):
+    """
+    Convert capability-management state into a natural
+    language response suitable for JARVIS speech.
+    """
+
+    if request.action == "details":
+
+        details = get_capability_details(
+            request.capability_name
+        )
+
+        if details is None:
+
+            return (
+                "I couldn't find that capability."
+            )
+
+        name = details["name"]
+
+        if not details["available"]:
+
+            reason = details["reason"]
+
+            if reason:
+
+                return (
+                    f"{name} isn't currently "
+                    f"available. {reason}"
+                )
+
+            return (
+                f"{name} isn't currently "
+                "available."
+            )
+
+        if not details["enabled"]:
+
+            return (
+                f"{name} is currently "
+                "disabled."
+            )
+
+        return (
+            f"{name} is available and enabled."
+        )
+
+    if request.action == "list":
+
+        summary = get_capability_summary()
+
+        available = summary["available"]
+        unavailable = summary["unavailable"]
+        disabled = summary["disabled"]
+
+        parts = []
+
+        if available:
+
+            parts.append(
+                "Currently available: "
+                + ", ".join(available)
+                + "."
+            )
+
+        if unavailable:
+
+            parts.append(
+                "Registered but unavailable: "
+                + ", ".join(unavailable)
+                + "."
+            )
+
+        if disabled:
+
+            parts.append(
+                "Disabled: "
+                + ", ".join(disabled)
+                + "."
+            )
+
+        if not parts:
+
+            return (
+                "I don't currently have any "
+                "registered capabilities."
+            )
+
+        return " ".join(parts)
+
+    if request.action == "list_disabled":
+
+        disabled = (
+            get_disabled_capability_names()
+        )
+
+        if not disabled:
+
+            return (
+                "I don't currently have any "
+                "disabled capabilities."
+            )
+
+        return (
+            "The following capabilities are disabled: "
+            + ", ".join(disabled)
+            + "."
+        )
+
+    if request.action == "list_unavailable":
+
+        unavailable = (
+            get_unavailable_capability_names()
+        )
+
+        if not unavailable:
+
+            return (
+                "I don't currently have any "
+                "unavailable capabilities."
+            )
+
+        return (
+            "The following capabilities are "
+            "currently unavailable: "
+            + ", ".join(unavailable)
+            + "."
+        )
+
+    if request.action == "status":
+
+        summary = get_capability_summary()
+
+        return (
+            f"I have {summary['total']} registered "
+            f"capabilities. "
+            f"{len(summary['available'])} are available, "
+            f"{len(summary['unavailable'])} are unavailable, "
+            f"and {len(summary['disabled'])} are disabled."
+        )
+
+    return (
+        "I don't know how to inspect that "
+        "capability information yet."
+    )
+
 def process(
     command,
     allow_interruption=True,
@@ -397,6 +629,59 @@ def process(
     )
 
     normalized_command = command.strip(".,!")
+
+    arithmetic_result = try_basic_arithmetic(
+        command
+    )
+
+    if arithmetic_result is not None:
+
+        print(
+            "JARVIS:",
+            arithmetic_result,
+        )
+
+        speak(
+            arithmetic_result
+        )
+
+        return arithmetic_result
+
+    # =========================================================
+    # CAPABILITY MANAGEMENT
+    # =========================================================
+    #
+    # Capability-management questions must be checked before
+    # deterministic execution. For example:
+    #
+    # "Is current time available?"
+    #
+    # should inspect capability state rather than execute
+    # the current-time tool.
+    #
+
+    capability_management = (
+        detect_capability_management_request(
+            normalized_command
+        )
+    )
+
+    if capability_management.matched:
+
+        print(
+            "[Router] Capability management:",
+            capability_management.action,
+        )
+
+        response = (
+            format_capability_management_response(
+                capability_management
+            )
+        )
+
+        speak(response)
+
+        return
 
     capability = resolve_capability(
         normalized_command
