@@ -307,3 +307,72 @@ def detect_capability_request(command):
         confidence=0.0,
         matched=False,
     )
+
+@dataclass(frozen=True)
+class AgentRequest:
+    """
+    Describes a request that should be delegated to an
+    external JARVIS agent.
+    """
+
+    agent_name: str = ""
+    confidence: float = 0.0
+    matched: bool = False
+
+
+AGENT_PATTERNS = (
+    "research ",
+    "research this",
+    "research that",
+    "look into ",
+    "investigate ",
+    "investigate this",
+    "investigate that",
+    "analyze this project",
+    "analyze the project",
+    "analyze my project",
+    "analyze these files",
+    "analyze the files",
+    "work through this",
+    "work through these files",
+    "figure out why ",
+    "find out why ",
+    "find out how ",
+    "look up ",
+    "search the web for ",
+    "search the internet for ",
+    "browse the web for ",
+    "browse the internet for ",
+)
+
+
+def detect_agent_request(
+    command,
+):
+    """
+    Detect requests appropriate for delegation to an
+    external agent.
+
+    Matching is intentionally conservative. Simple commands,
+    deterministic capabilities, and ordinary conversation
+    should not automatically be sent to Hermes.
+    """
+
+    normalized = normalize_request(
+        command
+    )
+
+    if not normalized:
+        return AgentRequest()
+
+    for pattern in AGENT_PATTERNS:
+
+        if normalized.startswith(pattern):
+
+            return AgentRequest(
+                agent_name="hermes",
+                confidence=1.0,
+                matched=True,
+            )
+
+    return AgentRequest()

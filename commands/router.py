@@ -52,6 +52,7 @@ from services.project_state import (
 from services.capability_request import (
     detect_capability_request,
     detect_capability_management_request,
+    detect_agent_request,
 )
 
 from services.capability_service import (
@@ -78,6 +79,16 @@ from services.capability_manager import (
     get_available_capability_names,
     get_disabled_capability_names,
     get_unavailable_capability_names,
+)
+
+from services.agents.agent_manager import (
+    register_agent,
+    get_agent,
+    execute_agent,
+)
+
+from services.agents.hermes_agent import (
+    HermesAgent,
 )
 
 import queue
@@ -117,11 +128,15 @@ ALIASES = {
 
 def try_basic_arithmetic(command):
     """
-    Handle simple arithmetic directly in JARVIS.
+    Handle simple spoken arithmetic directly in JARVIS.
 
-    This prevents the conversational AI from using external
-    tools for calculations and keeps deterministic operations
-    deterministic.
+    Supports:
+        2 plus 2
+        two plus two
+        what's 2 plus 2
+        that's two plus two
+        27 times 14
+        twenty seven times fourteen
     """
 
     if not command:
@@ -129,64 +144,182 @@ def try_basic_arithmetic(command):
 
     text = command.lower().strip()
 
-    # Normalize common spoken-math phrases.
-    replacements = {
-        "what is": "",
-        "what's": "",
-        "calculate": "",
-        "how much is": "",
-        "tell me": "",
+    # Remove common spoken prefixes.
+    prefixes = (
+        "what is",
+        "what's",
+        "calculate",
+        "how much is",
+        "tell me",
+        "it's",
+        "it is",
+        "that's",
+        "that is",
+    )
+
+    changed = True
+
+    while changed:
+
+        changed = False
+
+        for prefix in prefixes:
+
+            if text.startswith(prefix + " "):
+
+                text = text[len(prefix):].strip()
+
+                changed = True
+                break
+
+    # Normalize common speech-recognition variations.
+    text = text.replace("-", " ")
+
+    # Spoken number vocabulary.
+    number_words = {
+        "zero": 0,
+        "one": 1,
+        "two": 2,
+        "three": 3,
+        "four": 4,
+        "five": 5,
+        "six": 6,
+        "seven": 7,
+        "eight": 8,
+        "nine": 9,
+        "ten": 10,
+        "eleven": 11,
+        "twelve": 12,
+        "thirteen": 13,
+        "fourteen": 14,
+        "fifteen": 15,
+        "sixteen": 16,
+        "seventeen": 17,
+        "eighteen": 18,
+        "nineteen": 19,
+        "twenty": 20,
+        "thirty": 30,
+        "forty": 40,
+        "fifty": 50,
+        "sixty": 60,
+        "seventy": 70,
+        "eighty": 80,
+        "ninety": 90,
+        "hundred": 100,
+        "thousand": 1000,
     }
 
-    for phrase, replacement in replacements.items():
-        if text.startswith(phrase):
-            text = text[len(phrase):].strip()
+    def parse_number(value):
 
-    text = (
-        text
-        .replace("plus", "+")
-        .replace("minus", "-")
-        .replace("times", "*")
-        .replace("multiplied by", "*")
-        .replace("divided by", "/")
+        value = value.strip()
+
+        # Numeric input.
+        try:
+            return float(value)
+        except ValueError:
+            pass
+
+        words = value.split()
+
+        if not words:
+            return None
+
+        total = 0
+        current = 0
+
+        for word in words:
+
+            if word not in number_words:
+                return None
+
+            number = number_words[word]
+
+            if number == 100:
+
+                if current == 0:
+                    current = 1
+
+                current *= 100
+
+            elif number == 1000:
+
+                if current == 0:
+                    current = 1
+
+                total += current * 1000
+                current = 0
+
+            else:
+
+                current += number
+
+        return float(total + current)
+
+    # Supported arithmetic operators.
+    operations = (
+        ("multiplied by", "*"),
+        ("divided by", "/"),
+        ("plus", "+"),
+        ("minus", "-"),
+        ("times", "*"),
     )
 
-    # Only allow simple numeric arithmetic.
-    allowed = set(
-        "0123456789+-*/(). "
-    )
+    operator = None
+    left_text = None
+    right_text = None
 
-    if not text:
+    for phrase, symbol in operations:
+
+        if phrase in text:
+
+            parts = text.split(
+                phrase,
+                1,
+            )
+
+            if len(parts) != 2:
+                return None
+
+            left_text = parts[0].strip()
+            right_text = parts[1].strip()
+
+            operator = symbol
+            break
+
+    if operator is None:
         return None
 
-    if any(
-        character not in allowed
-        for character in text
-    ):
+    left = parse_number(left_text)
+    right = parse_number(right_text)
+
+    if left is None or right is None:
         return None
 
-    # Require at least one operator.
-    if not any(
-        operator in text
-        for operator in "+-*/"
-    ):
+    if operator == "+":
+
+        result = left + right
+
+    elif operator == "-":
+
+        result = left - right
+
+    elif operator == "*":
+
+        result = left * right
+
+    elif operator == "/":
+
+        if right == 0:
+            return "I can't divide by zero."
+
+        result = left / right
+
+    else:
         return None
 
-    try:
-        result = eval(
-            text,
-            {
-                "__builtins__": {}
-            },
-            {},
-        )
+    if result.is_integer():
 
-    except Exception:
-        return None
-
-    if isinstance(result, float):
-        if result.is_integer():
-            result = int(result)
+        return str(int(result))
 
     return str(result)
 
@@ -562,6 +695,20 @@ def format_capability_management_response(
         "capability information yet."
     )
 
+def ensure_agents_registered():
+    """
+    Ensure JARVIS' external agents are registered.
+
+    Registration is idempotent so this can safely be called
+    whenever the router processes a command.
+    """
+
+    if get_agent("hermes") is None:
+
+        register_agent(
+            HermesAgent()
+        )
+
 def process(
     command,
     allow_interruption=True,
@@ -636,17 +783,12 @@ def process(
 
     if arithmetic_result is not None:
 
-        print(
-            "JARVIS:",
-            arithmetic_result,
-        )
-
         speak(
             arithmetic_result
         )
 
         return arithmetic_result
-
+    
     # =========================================================
     # CAPABILITY MANAGEMENT
     # =========================================================
@@ -700,7 +842,108 @@ def process(
 
         return
 
-    intent = resolve_intent(command)
+
+    # =========================================================
+    # GENERAL EXPLANATION
+    # =========================================================
+    #
+    # Generic explanations should remain conversational.
+    #
+    # For example:
+    #
+    #     "Explain why 27 times 14 is important in programming."
+    #
+    # is not a file request simply because it starts with
+    # "explain".
+    #
+    # Only treat an explanation as a file/code request when there
+    # is an active file topic or the requested target is actually
+    # a file in the project.
+    #
+
+    if normalized_command.startswith(
+        "explain "
+    ):
+
+        explanation_target = (
+            normalized_command[
+                len("explain "):
+            ].strip()
+        )
+
+        active_topic = get_topic()
+
+        file_target_exists = False
+
+        if active_topic:
+
+            if active_topic.get(
+                "type"
+            ) == "file":
+
+                file_target_exists = True
+
+        if not file_target_exists:
+
+            file_info = get_file_content(
+                explanation_target
+            )
+
+            if file_info:
+
+                file_target_exists = True
+
+        if not file_target_exists:
+
+            print(
+                "[Router] General explanation detected."
+            )
+
+            result = process_streaming_conversation(
+                normalized_command
+            )
+
+            if not result:
+
+                return
+
+            if result.startswith(
+                INTERRUPTION_PREFIX
+            ):
+
+                interrupted_command = result[
+                    len(INTERRUPTION_PREFIX):
+                ].strip()
+
+                print(
+                    "[Router] Processing interruption:",
+                    interrupted_command,
+                )
+
+                interrupted_command = (
+                    normalize_interruption(
+                        interrupted_command
+                    )
+                )
+
+                print(
+                    "[Router] Normalized interruption:",
+                    interrupted_command,
+                )
+
+                if interrupted_command:
+
+                    process(
+                        interrupted_command,
+                        allow_interruption=False,
+                    )
+
+            return
+
+
+    intent = resolve_intent(
+        command
+    )
 
     print(
         f"[Router] Intent: "
@@ -783,6 +1026,91 @@ def process(
             )
 
             return
+
+    # =========================================================
+    # EXTERNAL AGENT
+    # =========================================================
+    #
+    # Complex research, investigation, and multi-step requests
+    # can be delegated to Hermes.
+    #
+    # This comes after deterministic capabilities so requests
+    # such as "what time is it" or "what is my Git branch"
+    # remain local and fast.
+    #
+
+    agent_request = detect_agent_request(
+        normalized_command
+    )
+
+    if agent_request.matched:
+
+        print(
+            "[Router] External agent:",
+            agent_request.agent_name,
+        )
+
+        ensure_agents_registered()
+
+        agent = get_agent(
+            agent_request.agent_name
+        )
+
+        if agent is None:
+
+            speak(
+                "I couldn't initialize the requested agent."
+            )
+
+            return
+
+        if not agent.available:
+
+            speak(
+                "Hermes is currently unavailable."
+            )
+
+            return
+
+        result = execute_agent(
+            agent_request.agent_name,
+            normalized_command,
+        )
+
+        if result.success:
+
+            print(
+                "[Router] Agent completed:",
+                agent_request.agent_name,
+            )
+
+            if result.message:
+
+                speak(
+                    result.message
+                )
+
+            return
+
+        print(
+            "[Router] Agent failed:",
+            result.error,
+        )
+
+        if result.error:
+
+            speak(
+                "I couldn't complete that through Hermes. "
+                + result.error
+            )
+
+        else:
+
+            speak(
+                "I couldn't complete that through Hermes."
+            )
+
+        return
 
     # =========================================================
     # CONVERSATION
@@ -1075,6 +1403,19 @@ def process(
     # =========================================================
     # AI TOOL DETECTION
     # =========================================================
+    #
+    # AI tool detection is intentionally conservative.
+    #
+    # A natural-language question such as:
+    #
+    #     "Explain why 27 times 14 is important in programming."
+    #
+    # must remain a conversation unless there is an actual
+    # capability/tool request.
+    #
+    # File-related tools should only be selected when the request
+    # has already been identified as a file/code operation.
+    #
 
     tool = detect_tool(
         normalized_command
@@ -1083,6 +1424,25 @@ def process(
     print(
         f"Selected tool: {tool}"
     )
+
+    # ---------------------------------------------------------
+    # Do not allow generic "explain" questions to become
+    # explain_file requests.
+    # ---------------------------------------------------------
+
+    if tool == "explain_file":
+
+        file_topic = get_topic()
+
+        if not file_topic:
+
+            print(
+                "[Router] Ignoring explain_file detection "
+                "because no file topic is active."
+            )
+
+            tool = "none"
+
 
     if tool != "none":
 

@@ -110,17 +110,12 @@ def test_calendar_is_reported_unavailable():
         == "Calendar integration has not been configured yet."
     )
 
-def test_hermes_is_reported_unavailable():
-
-    details = get_capability_details(
+def test_hermes_is_reported_available():
+    capability = get_capability_details(
         "hermes_agent"
     )
 
-    assert details is not None
-    assert details["name"] == "Hermes Agent"
-    assert details["available"] is False
-    assert details["enabled"] is False
-    assert (
-        "not been installed or configured"
-        in details["reason"]
-    )
+    assert capability is not None
+    assert capability["available"] is True
+    assert capability["enabled"] is True
+    assert capability["reason"] is None

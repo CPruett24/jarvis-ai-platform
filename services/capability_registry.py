@@ -1,4 +1,8 @@
 from dataclasses import dataclass
+from services.agents.hermes_acp import HermesACPConnection
+
+
+_HERMES_AVAILABLE = HermesACPConnection().available
 
 
 @dataclass(frozen=True)
@@ -208,9 +212,11 @@ CAPABILITY_REGISTRY = {
             "terminal, and multi-step tasks to the Hermes agent."
         ),
         category="agent",
-        available=False,
+        available=_HERMES_AVAILABLE,
         reason=(
-            "Hermes has not been installed or configured yet."
+            None
+            if _HERMES_AVAILABLE
+            else "Hermes has not been installed or configured."
         ),
     ),
 }
