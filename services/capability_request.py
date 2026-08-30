@@ -311,14 +311,14 @@ def detect_capability_request(command):
 @dataclass(frozen=True)
 class AgentRequest:
     """
-    Describes a request that should be delegated to an
-    external JARVIS agent.
+        Describes a request that should be delegated to an
+        external JARVIS agent.
     """
-
     agent_name: str = ""
+    task: str = ""
     confidence: float = 0.0
     matched: bool = False
-
+    
 
 AGENT_PATTERNS = (
     "research ",
@@ -369,8 +369,32 @@ def detect_agent_request(
 
         if normalized.startswith(pattern):
 
+            task = normalized[
+                len(pattern):
+            ].strip()
+
+            # Remove common connector words between the
+            # Hermes request and the actual task.
+            for prefix in (
+                "to ",
+                "for ",
+                "and ",
+                "please ",
+            ):
+
+                if task.startswith(prefix):
+
+                    task = task[
+                        len(prefix):
+                    ].strip()
+
+            if not task:
+
+                return AgentRequest()
+
             return AgentRequest(
                 agent_name="hermes",
+                task=task,
                 confidence=1.0,
                 matched=True,
             )

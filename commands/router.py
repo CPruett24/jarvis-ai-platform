@@ -91,6 +91,10 @@ from services.agents.hermes_agent import (
     HermesAgent,
 )
 
+from services.agent_response_service import (
+    process_agent_response,
+)
+
 import queue
 import threading
 import time
@@ -1074,7 +1078,7 @@ def process(
 
         result = execute_agent(
             agent_request.agent_name,
-            normalized_command,
+            agent_request.task,
         )
 
         if result.success:
@@ -1086,9 +1090,23 @@ def process(
 
             if result.message:
 
-                speak(
-                    result.message
+                agent_response = (
+                    process_agent_response(
+                        result.message
+                    )
                 )
+
+                response = (
+                    agent_response.speech_response
+                )
+
+                if response:
+
+                    speak(
+                        response
+                    )
+
+                return response
 
             return
 

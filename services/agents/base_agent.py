@@ -27,3 +27,16 @@ class BaseAgent:
         **kwargs,
     ):
         raise NotImplementedError
+
+    def stream(
+        self,
+        task,
+        **kwargs,
+    ):
+        """
+        Stream response chunks from the agent.
+
+        Agents that support streaming should yield text chunks.
+        """
+
+        raise NotImplementedError

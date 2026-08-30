@@ -68,3 +68,28 @@ def execute_agent(
             agent=agent_name,
             error=str(exc),
         )
+
+
+def stream_agent(
+    agent_name,
+    task,
+    **kwargs,
+):
+    """
+    Stream response chunks from a registered agent.
+    """
+
+    agent = get_agent(
+        agent_name
+    )
+
+    if agent is None:
+
+        raise RuntimeError(
+            "Agent is not registered."
+        )
+
+    yield from agent.stream(
+        task,
+        **kwargs,
+    )
