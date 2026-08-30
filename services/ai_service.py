@@ -1,7 +1,11 @@
 import json
 from models.tool_request import ToolRequest
 from ollama import chat
-from services.conversation_service import add_message, get_history
+from services.conversation_service import (
+    add_message,
+    get_source_aware_history,
+)
+
 from services.memory_service import get_memory_context
 from services.status_service import update_status
 from commands.tool_manager import get_tool_descriptions
@@ -10,6 +14,14 @@ from services.project_service import get_file_content
 from services.capability_service import get_capability_context
 from services.agents.hermes_acp import (
     HermesACPConnection,
+)
+
+from services.grounding_service import (
+    format_information_context,
+)
+
+from services.memory_service import (
+    get_memory_information
 )
 
 _hermes_connection = None
@@ -89,11 +101,16 @@ def ask_ai(
     add_message(
         "user",
         prompt,
+        source="user",
     )
 
     update_status("thinking")
 
-    memory_context = get_memory_context()
+    memory_information = get_memory_information()
+
+    memory_context = format_information_context(
+        memory_information
+    )
 
     topic = get_topic()
 
@@ -194,7 +211,7 @@ def ask_ai(
     ]
 
     messages.extend(
-        get_history()
+        get_source_aware_history()
     )
 
     response = chat(
@@ -210,6 +227,7 @@ def ask_ai(
         add_message(
             "assistant",
             answer,
+            source="ollama",
         )
 
         return answer
@@ -232,6 +250,7 @@ def ask_ai(
     add_message(
         "assistant",
         full_response,
+        source="ollama",
     )
 
     return full_response
@@ -443,11 +462,16 @@ def stream_ai_response(
     add_message(
         "user",
         prompt,
+        source="user",
     )
 
     update_status("thinking")
 
-    memory_context = get_memory_context()
+    memory_information = get_memory_information()
+
+    memory_context = format_information_context(
+        memory_information
+    )
 
     topic = get_topic()
 
@@ -514,8 +538,8 @@ def stream_ai_response(
                 "\nDo not say \"User's name's project "
                 "deadline is Friday.\""
 
-                "\n\nThe following memories are facts "
-                "about the person you are speaking to:\n\n"
+                "\n\nThe following information was retrieved from persistent memory. "
+                "Treat it as remembered information, not as something you directly observed:\n\n"
 
                 "\n\nCONVERSATION MODE:\n"
                 "When answering normal conversational questions, answer "
@@ -554,7 +578,7 @@ def stream_ai_response(
     ]
 
     messages.extend(
-        get_history()
+        get_source_aware_history()
     )
 
     hermes, session_id = get_hermes_session()
@@ -585,6 +609,7 @@ def stream_ai_response(
         add_message(
             "assistant",
             full_response,
+            source="hermes",
         )
 
     update_status("listening")

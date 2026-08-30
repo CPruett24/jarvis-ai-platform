@@ -7,6 +7,9 @@ from services.capability_state import (
 from commands.tool_manager import get_tool
 from models.tool_request import ToolRequest
 
+from services.grounding_service import (
+    create_observed_information,
+)
 
 @dataclass
 class CapabilityExecutionResult:
@@ -20,6 +23,33 @@ class CapabilityExecutionResult:
     data: dict = field(default_factory=dict)
     error: str | None = None
 
+def get_observed_information(
+    result,
+):
+
+    if not result.success:
+
+        return []
+
+    information = []
+
+    if result.message:
+
+        information.append(
+            create_observed_information(
+                result.message
+            )
+        )
+
+    for key, value in result.data.items():
+
+        information.append(
+            create_observed_information(
+                f"{key}: {value}"
+            )
+        )
+
+    return information
 
 def execute_capability(
     capability_name,

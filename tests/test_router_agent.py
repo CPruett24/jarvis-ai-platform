@@ -1,6 +1,8 @@
 from commands import router
 
 
+saved_messages = []
+
 def test_router_delegates_agent_request(
     monkeypatch,
 ):
@@ -33,6 +35,25 @@ def test_router_delegates_agent_request(
         lambda text: None,
     )
 
+    def fake_add_message(
+        role,
+        message,
+        source=None,
+    ):
+        saved_messages.append(
+            {
+                "role": role,
+                "message": message,
+                "source": source,
+            }
+        )
+
+    monkeypatch.setattr(
+        router,
+        "add_message",
+        fake_add_message,
+    )
+
     response = router.process(
         "research artificial intelligence trends",
         allow_interruption=False,
@@ -51,6 +72,24 @@ def test_router_delegates_agent_request(
     assert (
         response
         == "Research completed."
+    )
+
+    assert (
+        saved_messages
+        == [
+            {
+                "role": "user",
+                "message": (
+                    "research artificial intelligence trends"
+                ),
+                "source": "user",
+            },
+            {
+                "role": "assistant",
+                "message": "Research completed.",
+                "source": "hermes",
+            },
+        ]
     )
 
 def test_router_persists_agent_request_and_response(
@@ -73,6 +112,7 @@ def test_router_persists_agent_request_and_response(
     def fake_add_message(
         role,
         message,
+        source=None,
     ):
         saved_messages.append(
             (
@@ -118,4 +158,22 @@ def test_router_persists_agent_request_and_response(
     assert (
         response
         == "Research completed."
+    )
+
+    assert (
+        saved_messages
+        == [
+            {
+                "role": "user",
+                "message": (
+                    "research artificial intelligence trends"
+                ),
+                "source": "user",
+            },
+            {
+                "role": "assistant",
+                "message": "Research completed.",
+                "source": "hermes",
+            },
+        ]
     )

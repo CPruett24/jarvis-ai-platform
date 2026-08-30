@@ -46,7 +46,11 @@ def end_session():
     current_session = None
 
 
-def save_message(role, message):
+def save_message(
+    role,
+    message,
+    source=None,
+):
 
     if current_session is None:
         return
@@ -57,6 +61,7 @@ def save_message(role, message):
         session_id=current_session.id,
         role=role,
         message=message,
+        source=source,
     )
 
     db.add(conversation)
@@ -87,6 +92,7 @@ def get_recent_messages(limit=20):
             "content": message.message,
             "timestamp": message.timestamp,
             "session_id": message.session_id,
+            "source": message.source,
         }
         for message in messages
     ]

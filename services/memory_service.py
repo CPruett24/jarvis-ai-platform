@@ -1,5 +1,9 @@
 from models.memory import SessionLocal, Memory
 
+from services.grounding_service import (
+    create_memory_information,
+)
+
 def remember(content, category="general"):
     session = SessionLocal()
     memory = Memory(content=content)
@@ -28,6 +32,17 @@ def get_memory_context():
         )
 
     return "\n".join(memory_text)
+
+def get_memory_information():
+
+    memories = get_memories()
+
+    return [
+        create_memory_information(
+            memory.content
+        )
+        for memory in memories
+    ]
 
 def search_memories(keyword):
     session = SessionLocal()

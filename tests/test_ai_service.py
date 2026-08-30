@@ -1,5 +1,13 @@
 import services.ai_service as ai_service
 
+from models.information import (
+    InformationSource,
+)
+
+from services.grounding_service import (
+    create_information_item,
+)
+
 
 class FakeChunk:
 
@@ -18,15 +26,19 @@ def test_ask_ai_non_streaming(monkeypatch):
 
     captured = {}
 
+    saved_messages = []
+
     def fake_add_message(
         role,
-        content,
+        message,
+        source=None,
     ):
-        captured.setdefault(
-            "messages",
-            [],
-        ).append(
-            (role, content)
+        saved_messages.append(
+            {
+                "role": role,
+                "message": message,
+                "source": source,
+            }
         )
 
     def fake_chat(
@@ -49,8 +61,13 @@ def test_ask_ai_non_streaming(monkeypatch):
 
     monkeypatch.setattr(
         ai_service,
-        "get_memory_context",
-        lambda: "No stored memories.",
+        "get_memory_information",
+        lambda: [
+            create_information_item(
+                "Your project deadline is Friday.",
+                InformationSource.REMEMBERED,
+            )
+        ],
     )
 
     monkeypatch.setattr(
@@ -61,8 +78,14 @@ def test_ask_ai_non_streaming(monkeypatch):
 
     monkeypatch.setattr(
         ai_service,
-        "get_history",
+        "get_source_aware_history",
         lambda: [],
+    )
+
+    monkeypatch.setattr(
+        ai_service,
+        "get_capability_context",
+        lambda: "No capabilities available.",
     )
 
     monkeypatch.setattr(
@@ -88,14 +111,39 @@ def test_ask_ai_non_streaming(monkeypatch):
     assert captured["chat"]["stream"] is False
 
     assert (
-        "user",
-        "Hello",
-    ) in captured["messages"]
+        "[remembered] "
+        "Your project deadline is Friday."
+        in captured["chat"]["messages"][0]["content"]
+    )
+
+    assert saved_messages == [
+        {
+            "role": "user",
+            "message": "Hello",
+            "source": "user",
+        },
+        {
+            "role": "assistant",
+            "message": "Hello from JARVIS.",
+            "source": "ollama",
+        },
+    ]
 
     assert (
-        "assistant",
-        "Hello from JARVIS.",
-    ) in captured["messages"]
+        saved_messages
+        == [
+            {
+                "role": "user",
+                "message": "Hello",
+                "source": "user",
+            },
+            {
+                "role": "assistant",
+                "message": "Hello from JARVIS.",
+                "source": "ollama",
+            },
+        ]
+    )
 
 
 def test_ask_ai_streaming(monkeypatch):
@@ -104,15 +152,19 @@ def test_ask_ai_streaming(monkeypatch):
 
     streamed_chunks = []
 
+    saved_messages = []
+
     def fake_add_message(
         role,
-        content,
+        message,
+        source=None,
     ):
-        captured.setdefault(
-            "messages",
-            [],
-        ).append(
-            (role, content)
+        saved_messages.append(
+            {
+                "role": role,
+                "message": message,
+                "source": source,
+            }
         )
 
     def fake_chat(
@@ -143,8 +195,13 @@ def test_ask_ai_streaming(monkeypatch):
 
     monkeypatch.setattr(
         ai_service,
-        "get_memory_context",
-        lambda: "No stored memories.",
+        "get_memory_information",
+        lambda: [
+            create_information_item(
+                "Your project deadline is Friday.",
+                InformationSource.REMEMBERED,
+            )
+        ],
     )
 
     monkeypatch.setattr(
@@ -155,8 +212,14 @@ def test_ask_ai_streaming(monkeypatch):
 
     monkeypatch.setattr(
         ai_service,
-        "get_history",
+        "get_source_aware_history",
         lambda: [],
+    )
+
+    monkeypatch.setattr(
+        ai_service,
+        "get_capability_context",
+        lambda: "No capabilities available.",
     )
 
     monkeypatch.setattr(
@@ -183,13 +246,43 @@ def test_ask_ai_streaming(monkeypatch):
 
     assert captured["chat"]["stream"] is True
 
+    assert (
+        "[remembered] "
+        "Your project deadline is Friday."
+        in captured["chat"]["messages"][0]["content"]
+    )
+
     assert streamed_chunks == [
         "Hello ",
         "from ",
         "JARVIS.",
     ]
 
+    assert saved_messages == [
+        {
+            "role": "user",
+            "message": "Hello",
+            "source": "user",
+        },
+        {
+            "role": "assistant",
+            "message": "Hello from JARVIS.",
+            "source": "ollama",
+        },
+    ]
+
     assert (
-        "assistant",
-        "Hello from JARVIS.",
-    ) in captured["messages"]
+        saved_messages
+        == [
+            {
+                "role": "user",
+                "message": "Hello",
+                "source": "user",
+            },
+            {
+                "role": "assistant",
+                "message": "Hello from JARVIS.",
+                "source": "ollama",
+            },
+        ]
+    )

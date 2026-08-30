@@ -1,4 +1,9 @@
-from sqlalchemy import create_engine
+from sqlalchemy import (
+    create_engine,
+    inspect,
+    text,
+)
+
 from sqlalchemy.orm import declarative_base, sessionmaker
 from pathlib import Path
 
@@ -14,6 +19,33 @@ SessionLocal = sessionmaker(
 )
 
 Base = declarative_base()
+
+def ensure_conversation_source_column():
+
+    inspector = inspect(
+        engine
+    )
+
+    columns = inspector.get_columns(
+        "conversations"
+    )
+
+    column_names = {
+        column["name"]
+        for column in columns
+    }
+
+    if "source" in column_names:
+        return
+
+    with engine.begin() as connection:
+
+        connection.execute(
+            text(
+                "ALTER TABLE conversations "
+                "ADD COLUMN source VARCHAR"
+            )
+        )
 
 def initialize_database():
 
@@ -49,3 +81,5 @@ def initialize_database():
     Base.metadata.create_all(
         bind=engine
     )
+
+    ensure_conversation_source_column()

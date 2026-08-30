@@ -27,6 +27,11 @@ class Conversation(Base):
         String
     )
 
+    source = Column(
+        String,
+        nullable=True,
+    )
+
     timestamp = Column(
         DateTime,
         default=datetime.utcnow

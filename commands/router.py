@@ -1065,6 +1065,7 @@ def process(
         add_message(
             "user",
             normalized_command,
+            source="user",
         )
 
         ensure_agents_registered()
@@ -1082,6 +1083,7 @@ def process(
             add_message(
                 "assistant",
                 response,
+                source="router",
             )
 
             speak(response)
@@ -1097,6 +1099,7 @@ def process(
             add_message(
                 "assistant",
                 response,
+                source="router",
             )
 
             speak(response)
@@ -1132,6 +1135,7 @@ def process(
                     add_message(
                         "assistant",
                         response,
+                        source="hermes",
                     )
 
                     speak(
@@ -1163,6 +1167,7 @@ def process(
         add_message(
             "assistant",
             response,
+            source="router",
         )
 
         speak(response)
