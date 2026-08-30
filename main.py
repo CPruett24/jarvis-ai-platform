@@ -3,13 +3,19 @@ from services.listener import (
     listen_for_speech,
     listen_for_wake_word,
 )
+
 from services.status_service import (
     update_last_command,
     update_status,
 )
+
 from services.conversation_db import (
     start_session,
     end_session,
+)
+
+from services.conversation_service import (
+    restore_recent_history,
 )
 
 from commands.router import process
@@ -30,7 +36,11 @@ SESSION_END_PHRASES = [
 ]
 
 initialize_database()
+
+restore_recent_history()
+
 start_session()
+
 speak("JARVIS online.")
 
 update_status("listening")

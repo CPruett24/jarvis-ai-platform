@@ -20,6 +20,10 @@ from services.conversation_manager import (
     get_topic,
 )
 
+from services.conversation_service import (
+    add_message,
+)
+
 from services.code_intent import (
     is_code_question,
     is_contextual_code_question,
@@ -93,6 +97,10 @@ from services.agents.hermes_agent import (
 
 from services.agent_response_service import (
     process_agent_response,
+)
+
+from services.conversation_service import (
+    save_message,
 )
 
 import queue
@@ -1054,6 +1062,11 @@ def process(
             agent_request.agent_name,
         )
 
+        add_message(
+            "user",
+            normalized_command,
+        )
+
         ensure_agents_registered()
 
         agent = get_agent(
@@ -1062,19 +1075,33 @@ def process(
 
         if agent is None:
 
-            speak(
+            response = (
                 "I couldn't initialize the requested agent."
             )
 
-            return
+            add_message(
+                "assistant",
+                response,
+            )
+
+            speak(response)
+
+            return response
 
         if not agent.available:
 
-            speak(
+            response = (
                 "Hermes is currently unavailable."
             )
 
-            return
+            add_message(
+                "assistant",
+                response,
+            )
+
+            speak(response)
+
+            return response
 
         result = execute_agent(
             agent_request.agent_name,
@@ -1102,6 +1129,11 @@ def process(
 
                 if response:
 
+                    add_message(
+                        "assistant",
+                        response,
+                    )
+
                     speak(
                         response
                     )
@@ -1117,18 +1149,25 @@ def process(
 
         if result.error:
 
-            speak(
+            response = (
                 "I couldn't complete that through Hermes. "
                 + result.error
             )
 
         else:
 
-            speak(
+            response = (
                 "I couldn't complete that through Hermes."
             )
 
-        return
+        add_message(
+            "assistant",
+            response,
+        )
+
+        speak(response)
+
+        return response
 
     # =========================================================
     # CONVERSATION

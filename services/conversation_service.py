@@ -1,7 +1,28 @@
-from services.conversation_db import save_message
+from services.conversation_db import (
+    save_message,
+    get_recent_messages,
+)
 
 conversation_history = []
 
+def restore_recent_history(
+    limit=10,
+):
+
+    messages = get_recent_messages(
+        limit=limit
+    )
+
+    conversation_history.clear()
+
+    for message in messages:
+
+        conversation_history.append(
+            {
+                "role": message["role"],
+                "content": message["content"],
+            }
+        )
 
 def add_message(role, message):
 
