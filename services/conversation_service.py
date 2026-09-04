@@ -87,6 +87,13 @@ def get_source_aware_history(
                 f"{content}"
             )
 
+        elif source == "observed":
+
+            content = (
+                "Observed tool result:\n"
+                f"{content}"
+            )
+
         elif source and source not in (
             "user",
             "ollama",

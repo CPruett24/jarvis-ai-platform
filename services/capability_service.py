@@ -1,14 +1,15 @@
 from dataclasses import dataclass
 
 from commands.static_commands import COMMANDS
-from commands.tool_manager import get_tool
 
 from services.capability_registry import (
     get_capability as get_registered_capability_from_registry,
+    get_capability_name_for_tool,
     get_available_capabilities,
     get_unavailable_capabilities,
-    get_capability_status,
+    CAPABILITY_REGISTRY,
 )
+from services.capability_state import is_capability_enabled
 
 
 @dataclass
@@ -49,6 +50,8 @@ class CapabilityMatch:
     source: str = "none"
 
     capability: Capability | None = None
+
+    capability_name: str | None = None
 
 def get_capability(name):
     """
@@ -143,25 +146,32 @@ def resolve_capability(command):
             available=False
         )
 
-    tool = get_tool(
+    capability_name = get_capability_name_for_tool(
         tool_name
     )
 
-    if tool is None:
+    if capability_name is None:
         return CapabilityMatch(
             available=False
         )
 
+    registered_capability = (
+        get_registered_capability_from_registry(
+            capability_name
+        )
+    )
+
+    enabled = is_capability_enabled(
+        capability_name
+    )
+
     capability = Capability(
         name=tool_name,
-        description=tool.get(
-            "description",
-            "No description available.",
-        ),
+        description=registered_capability.description,
         tool_name=tool_name,
         registered=True,
-        available=True,
-        enabled=True,
+        available=registered_capability.available,
+        enabled=enabled,
     )
 
     return CapabilityMatch(
@@ -174,6 +184,7 @@ def resolve_capability(command):
         description=capability.description,
         source="static_command",
         capability=capability,
+        capability_name=capability_name,
     )
 
 
@@ -185,7 +196,7 @@ def get_capability_context():
     exist and capabilities that are currently usable.
     """
 
-    capabilities = get_registered_capabilities()
+    capabilities = CAPABILITY_REGISTRY.items()
 
     if not capabilities:
         return "No capabilities are currently registered."
@@ -194,41 +205,22 @@ def get_capability_context():
         "JARVIS capability registry:"
     ]
 
-    for capability in capabilities:
+    for capability_name, capability in capabilities:
 
         status = "available"
 
-        if not capability.enabled:
+        if not is_capability_enabled(
+            capability_name
+        ):
             status = "disabled"
 
         elif not capability.available:
             status = "unavailable"
 
-        requirements = []
-
-        if capability.requires_authentication:
-            requirements.append(
-                "authentication required"
-            )
-
-        if capability.requires_confirmation:
-            requirements.append(
-                "user confirmation required"
-            )
-
-        requirement_text = ""
-
-        if requirements:
-            requirement_text = (
-                " ("
-                + ", ".join(requirements)
-                + ")"
-            )
-
         lines.append(
             f"- {capability.name}: "
             f"{capability.description} "
-            f"[{status}{requirement_text}]"
+            f"[{status}]"
         )
 
     lines.append("")
@@ -306,10 +298,16 @@ def explain_capability_availability(name):
             "registered."
         )
 
-    if capability.available:
+    if capability.available and is_capability_enabled(name):
 
         return (
             f"{capability.name} is currently available."
+        )
+
+    if capability.available:
+
+        return (
+            f"{capability.name} is currently disabled."
         )
 
     reason = capability.reason

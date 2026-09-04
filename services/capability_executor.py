@@ -41,7 +41,26 @@ def get_observed_information(
             )
         )
 
+    observations = result.data.get(
+        "observations"
+    )
+
+    if isinstance(observations, dict):
+
+        for key, value in observations.items():
+
+            information.append(
+                create_observed_information(
+                    f"{key}: {value}"
+                )
+            )
+
+        return information
+
     for key, value in result.data.items():
+
+        if key == "response":
+            continue
 
         information.append(
             create_observed_information(
@@ -145,9 +164,6 @@ def execute_capability(
         return CapabilityExecutionResult(
             success=True,
             capability=capability_name,
-            message=(
-                f"{capability.name} executed successfully."
-            ),
             data=data,
         )
 

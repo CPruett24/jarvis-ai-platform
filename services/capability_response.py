@@ -41,6 +41,14 @@ def format_capability_result(
 
         return result.message
 
+    response = result.data.get(
+        "response"
+    )
+
+    if response:
+
+        return response
+
     if formatters is not None:
 
         formatter = formatters.get(

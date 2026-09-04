@@ -230,6 +230,17 @@ def get_capability(name):
     return CAPABILITY_REGISTRY.get(name)
 
 
+def get_capability_name_for_tool(tool_name):
+    """Return the registered capability key for a tool name."""
+
+    for capability_name, capability in CAPABILITY_REGISTRY.items():
+
+        if capability.tool_name == tool_name:
+            return capability_name
+
+    return None
+
+
 def capability_exists(name):
     """
     Return True when a capability is registered.

@@ -114,19 +114,32 @@ def git_branch():
 
         if branch:
 
-            speak(
-                f"You are currently on the {branch} branch."
-            )
+            return {
+                "response": (
+                    f"You are currently on the {branch} branch."
+                ),
+                "observations": {
+                    "git_branch": branch,
+                },
+            }
 
         else:
 
-            speak("I couldn't determine the current branch.")
+            return {
+                "response": "I couldn't determine the current branch.",
+                "observations": {
+                    "git_branch": None,
+                },
+            }
 
     except Exception:
 
-        speak(
-            "This folder is not a Git repository."
-        )
+        return {
+            "response": "This folder is not a Git repository.",
+            "observations": {
+                "git_repository": False,
+            },
+        }
 
 def git_status():
 
@@ -139,23 +152,34 @@ def git_status():
 
         if not status:
 
-            speak(
-                "Your repository is clean."
-            )
-
-            return
+            return {
+                "response": "Your repository is clean.",
+                "observations": {
+                    "git_status": "clean",
+                    "modified_or_untracked_files": 0,
+                },
+            }
 
         modified_files = len(status.splitlines())
 
-        speak(
-            f"You have {modified_files} modified or untracked files."
-        )
+        return {
+            "response": (
+                f"You have {modified_files} modified or untracked files."
+            ),
+            "observations": {
+                "git_status": status,
+                "modified_or_untracked_files": modified_files,
+            },
+        }
 
     except Exception:
 
-        speak(
-            "This folder is not a Git repository."
-        )
+        return {
+            "response": "This folder is not a Git repository.",
+            "observations": {
+                "git_repository": False,
+            },
+        }
 
 def git_remote():
 
@@ -168,25 +192,31 @@ def git_remote():
 
         if not remotes:
 
-            speak(
-                "No Git remotes are configured."
-            )
+            return {
+                "response": "No Git remotes are configured.",
+                "observations": {
+                    "git_remotes": [],
+                },
+            }
 
-            return
-
-        speak(
-            "Your configured Git remotes are:"
-        )
-
-        for remote in remotes:
-
-            speak(remote)
+        return {
+            "response": (
+                "Your configured Git remotes are: "
+                + ", ".join(remotes)
+            ),
+            "observations": {
+                "git_remotes": remotes,
+            },
+        }
 
     except Exception:
 
-        speak(
-            "This folder is not a Git repository."
-        )
+        return {
+            "response": "This folder is not a Git repository.",
+            "observations": {
+                "git_repository": False,
+            },
+        }
 
 def python_version():
 
@@ -202,8 +232,6 @@ def project_tree():
 
     root = Path.cwd()
 
-    speak(f"You are currently in the {root.name} project.")
-
     directories = []
     files = []
 
@@ -218,10 +246,6 @@ def project_tree():
         else:
             files.append(item.name)
 
-    speak(
-        f"I found {len(directories)} folders and {len(files)} files."
-    )
-
     print("\n===== PROJECT STRUCTURE =====")
 
     print(f"{root.name}/")
@@ -234,13 +258,26 @@ def project_tree():
 
     print("=============================\n")
 
+    return {
+        "response": (
+            f"You are currently in the {root.name} project. "
+            f"I found {len(directories)} folders and {len(files)} files."
+        ),
+        "observations": {
+            "project": root.name,
+            "folder_count": len(directories),
+            "file_count": len(files),
+        },
+    }
+
 def find_file(filename=None):
 
     if not filename:
 
-        speak("Please specify a filename.")
-
-        return
+        return {
+            "response": "Please specify a filename.",
+            "observations": {},
+        }
 
     root = Path.cwd()
 
@@ -254,15 +291,13 @@ def find_file(filename=None):
 
     if not matches:
 
-        speak(f"I couldn't find {filename}.")
-
-        return
-
-    speak(
-        f"I found {len(matches)} matching file."
-        if len(matches) == 1
-        else f"I found {len(matches)} matching files."
-    )
+        return {
+            "response": f"I couldn't find {filename}.",
+            "observations": {
+                "file_search": filename,
+                "matches": [],
+            },
+        }
 
     print("\n===== SEARCH RESULTS =====")
 
@@ -270,6 +305,23 @@ def find_file(filename=None):
         print(match.relative_to(root))
 
     print("==========================\n")
+
+    relative_matches = [
+        str(match.relative_to(root))
+        for match in matches
+    ]
+
+    return {
+        "response": (
+            f"I found {len(matches)} matching file."
+            if len(matches) == 1
+            else f"I found {len(matches)} matching files."
+        ),
+        "observations": {
+            "file_search": filename,
+            "matches": relative_matches,
+        },
+    }
 
 def summarize_file_action(filename=None):
 
@@ -319,23 +371,24 @@ def search_project_action(keyword=None):
 
     if not keyword:
 
-        speak("Please specify something to search for.")
-
-        return
+        return {
+            "response": "Please specify something to search for.",
+            "observations": {},
+        }
 
     results = search_project(keyword)
 
     if not results:
 
-        speak(
-            f"I couldn't find '{keyword}' anywhere in the project."
-        )
-
-        return
-
-    speak(
-        f"I found {len(results)} matching files."
-    )
+        return {
+            "response": (
+                f"I couldn't find '{keyword}' anywhere in the project."
+            ),
+            "observations": {
+                "project_search": keyword,
+                "matches": [],
+            },
+        }
 
     print("\n===== SEARCH RESULTS =====")
 
@@ -346,6 +399,19 @@ def search_project_action(keyword=None):
         print(result.relative_to(root))
 
     print("==========================\n")
+
+    relative_results = [
+        str(result.relative_to(root))
+        for result in results
+    ]
+
+    return {
+        "response": f"I found {len(results)} matching files.",
+        "observations": {
+            "project_search": keyword,
+            "matches": relative_results,
+        },
+    }
 
 def explain_file_action(filename=None, depth=1,):
 
@@ -454,9 +520,13 @@ def current_time():
         ZoneInfo("America/New_York")
     ).strftime("%I:%M %p")
 
-    speak(
-        f"The current time is {now}"
-    )
+    return {
+        "response": f"The current time is {now}",
+        "observations": {
+            "current_time": now,
+            "timezone": "America/New_York",
+        },
+    }
 
 def open_github():
     speak("Opening GitHub")

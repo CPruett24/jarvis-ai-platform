@@ -67,6 +67,7 @@ from services.capability_service import (
 
 from services.capability_executor import (
     execute_capability,
+    get_observed_information,
 )
 
 from services.capability_response import (
@@ -102,6 +103,16 @@ from services.agent_response_service import (
 from services.conversation_service import (
     save_message,
 )
+
+from services.grounding_service import (
+    format_information_context,
+)
+
+from services.capability_registry import (
+    get_capability_name_for_tool,
+)
+
+from models.tool_request import ToolRequest
 
 import queue
 import threading
@@ -721,6 +732,89 @@ def ensure_agents_registered():
             HermesAgent()
         )
 
+
+MIGRATED_DETERMINISTIC_CAPABILITIES = {
+    "current_time",
+    "git_status",
+    "git_branch",
+    "git_remote",
+    "project_tree",
+    "project_search",
+    "file_search",
+}
+
+
+def execute_registered_capability(
+    capability_name,
+    arguments=None,
+):
+    """Execute and present a registered deterministic capability.
+
+    Successful results are retained as observed information so
+    future AI turns receive evidence rather than an unlabelled
+    assistant statement.
+    """
+
+    if arguments is None:
+
+        result = execute_capability(
+            capability_name
+        )
+
+    else:
+
+        result = execute_capability(
+            capability_name,
+            arguments=arguments,
+        )
+
+    if result.success:
+
+        observations = get_observed_information(
+            result
+        )
+
+        if observations:
+
+            add_message(
+                "assistant",
+                format_information_context(
+                    observations
+                ),
+                source="observed",
+            )
+
+    response = format_capability_result(
+        result
+    )
+
+    if response:
+
+        speak(response)
+
+    return result
+
+
+def execute_migrated_tool_request(
+    request,
+):
+    """Use the capability path for the scoped read-only tools."""
+
+    capability_name = get_capability_name_for_tool(
+        request.tool
+    )
+
+    if capability_name not in MIGRATED_DETERMINISTIC_CAPABILITIES:
+
+        return False
+
+    execute_registered_capability(
+        capability_name,
+        arguments=request.arguments,
+    )
+
+    return True
+
 def process(
     command,
     allow_interruption=True,
@@ -841,15 +935,15 @@ def process(
         normalized_command
     )
 
-    if capability.available:
+    if capability.source == "static_command":
 
         print(
             "[Router] Deterministic capability:",
             capability.tool_name,
         )
 
-        execute_tool(
-            capability.tool_name
+        execute_registered_capability(
+            capability.capability_name
         )
 
         return
@@ -1001,7 +1095,7 @@ def process(
 
             return
 
-        result = execute_capability(
+        result = execute_registered_capability(
             capability_name
         )
 
@@ -1012,32 +1106,14 @@ def process(
                 capability_name,
             )
 
-            response = format_capability_result(
-                result
-            )
-
-            if response:
-
-                speak(
-                    response
-                )
-
-            return
-
-        if result.error:
+        elif result.error:
 
             print(
                 "[Router] Capability failed:",
                 result.error,
             )
 
-            speak(
-                format_capability_result(
-                    result
-                )
-            )
-
-            return
+        return
 
     # =========================================================
     # EXTERNAL AGENT
@@ -1402,6 +1478,12 @@ def process(
 
     if parsed:
 
+        if execute_migrated_tool_request(
+            parsed
+        ):
+
+            return
+
         execute_tool(parsed)
 
         return
@@ -1515,8 +1597,18 @@ def process(
 
         for tool_name in tool_names:
 
+            request = ToolRequest(
+                tool=tool_name
+            )
+
+            if execute_migrated_tool_request(
+                request
+            ):
+
+                continue
+
             execute_tool(
-                tool_name
+                request
             )
 
         return

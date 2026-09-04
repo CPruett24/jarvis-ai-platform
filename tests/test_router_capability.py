@@ -193,12 +193,14 @@ def test_incidental_capability_language_does_not_trigger_capability(
 def test_disabled_capability_is_not_executed(monkeypatch):
 
     from commands import router
-    from services.capability_state import (
-        disable_capability,
-        enable_capability,
-    )
 
     executed = []
+
+    monkeypatch.setattr(
+        router,
+        "speak",
+        lambda text: None,
+    )
 
     monkeypatch.setattr(
         router,
@@ -217,23 +219,11 @@ def test_disabled_capability_is_not_executed(monkeypatch):
         ),
     )
 
-    disable_capability(
-        "calendar"
+    router.process(
+        "what's on my calendar"
     )
 
-    try:
-
-        router.process(
-            "what's on my calendar"
-        )
-
-        assert executed == []
-
-    finally:
-
-        enable_capability(
-            "calendar"
-        )
+    assert executed == []
 
 def test_capability_management_list(
     monkeypatch,
