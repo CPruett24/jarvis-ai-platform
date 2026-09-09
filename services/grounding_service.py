@@ -54,3 +54,12 @@ def create_observed_information(
         content,
         InformationSource.OBSERVED,
     )
+
+def create_agent_result_information(
+    content,
+):
+
+    return create_information_item(
+        content,
+        InformationSource.AGENT_RESULT,
+    )

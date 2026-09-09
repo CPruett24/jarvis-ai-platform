@@ -75,10 +75,21 @@ def get_source_aware_history(
 
         if source == "hermes":
 
-            content = (
-                "Hermes research result:\n"
-                f"{content}"
-            )
+            if content.startswith(
+                "[agent_result]"
+            ):
+
+                content = (
+                    "External agent result:\n"
+                    f"{content}"
+                )
+
+            else:
+
+                content = (
+                    "Hermes research result:\n"
+                    f"{content}"
+                )
 
         elif source == "router":
 

@@ -101,6 +101,7 @@ from services.agents.hermes_agent import (
 
 from services.agent_response_service import (
     process_agent_response,
+    get_agent_result_information,
 )
 
 from services.conversation_service import (
@@ -1226,28 +1227,33 @@ def process(
             )
 
             if result.message:
+                agent_response = process_agent_response(
+                    result.message
+                )
 
-                agent_response = (
-                    process_agent_response(
-                        result.message
+                response = agent_response.speech_response
+
+                agent_information = get_agent_result_information(
+                    result
+                )
+
+                if agent_information:
+                    add_message(
+                        "assistant",
+                        format_information_context(
+                            agent_information
+                        ),
+                        source="hermes",
                     )
-                )
-
-                response = (
-                    agent_response.speech_response
-                )
 
                 if response:
-
                     add_message(
                         "assistant",
                         response,
                         source="hermes",
                     )
 
-                    speak(
-                        response
-                    )
+                    speak(response)
 
                 return response
 

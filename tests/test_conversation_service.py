@@ -154,3 +154,18 @@ def test_get_source_aware_history():
             ),
         },
     ]
+
+def test_source_aware_history_identifies_agent_result():
+
+    conversation_service.add_message(
+        "assistant",
+        "[agent_result] The project contains 12 Python files.",
+        source="hermes",
+    )
+
+    history = conversation_service.get_source_aware_history()
+
+    assert history[-1]["content"] == (
+        "External agent result:\n"
+        "[agent_result] The project contains 12 Python files."
+    )

@@ -4,6 +4,10 @@ from services.agent_response_formatter import (
     clean_agent_response,
 )
 
+from services.grounding_service import (
+    create_agent_result_information,
+)
+
 
 @dataclass(frozen=True)
 class AgentResponse:
@@ -41,3 +45,25 @@ def process_agent_response(
         raw_response=raw_response,
         speech_response=speech_response,
     )
+
+
+def get_agent_result_information(result):
+    """
+    Convert a successful external agent result into
+    explicitly marked agent-produced information.
+
+    Agent results are not treated as deterministic
+    observations.
+    """
+
+    if not result.success:
+        return []
+
+    if not result.message:
+        return []
+
+    return [
+        create_agent_result_information(
+            result.message
+        )
+    ]
