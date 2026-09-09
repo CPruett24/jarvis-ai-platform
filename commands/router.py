@@ -8,7 +8,10 @@ from services.speaker import speak
 from commands.static_commands import COMMANDS
 from commands.dynamic_commands import process_dynamic_command
 from commands.tool_manager import execute_tool
-from services.command_parser import parse_command
+from services.command_parser import (
+    parse_command,
+    parse_workspace_command,
+)
 
 from services.conversation_manager import (
     has_pending_request,
@@ -741,6 +744,9 @@ MIGRATED_DETERMINISTIC_CAPABILITIES = {
     "project_tree",
     "project_search",
     "file_search",
+    "coding_workspace",
+    "aws_workspace",
+    "school_workspace",
 }
 
 
@@ -1114,6 +1120,31 @@ def process(
             )
 
         return
+
+    # =========================================================
+    # WORKSPACE
+    # =========================================================
+    #
+    # Workspace opening is a deterministic local capability.
+    # It must be resolved before external-agent detection so
+    # Hermes cannot intercept requests that JARVIS can execute
+    # directly.
+    #
+
+    workspace_request = parse_workspace_command(
+        normalized_command
+    )
+
+    if workspace_request:
+        print(
+            "[Router] Workspace capability:",
+            workspace_request.tool,
+        )
+
+        if execute_migrated_tool_request(
+            workspace_request
+        ):
+            return
 
     # =========================================================
     # EXTERNAL AGENT
@@ -1497,36 +1528,6 @@ def process(
     ):
 
         return
-
-    # =========================================================
-    # WORKSPACE
-    # =========================================================
-
-    if "workspace" in normalized_command:
-
-        workspace_name = None
-
-        if "coding" in normalized_command:
-            workspace_name = "coding"
-
-        elif "aws" in normalized_command:
-            workspace_name = "aws"
-
-        elif "school" in normalized_command:
-            workspace_name = "school"
-
-        if workspace_name:
-
-            print(
-                f"Workspace requested: "
-                f"{workspace_name}"
-            )
-
-            execute_tool(
-                f"open_{workspace_name}_workspace"
-            )
-
-            return
 
     # =========================================================
     # STATIC COMMAND LOOKUP

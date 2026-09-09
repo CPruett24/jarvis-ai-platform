@@ -77,3 +77,33 @@ def parse_command(command):
         )
 
     return None
+
+def parse_workspace_command(command):
+    """
+    Detect natural-language requests to open a configured workspace.
+
+    Returns a ToolRequest when the request clearly identifies
+    a supported workspace, otherwise returns None.
+    """
+
+    command = command.lower().strip()
+
+    if "workspace" not in command:
+        return None
+
+    if "coding" in command:
+        return ToolRequest(
+            tool="open_coding_workspace"
+        )
+
+    if "aws" in command:
+        return ToolRequest(
+            tool="open_aws_workspace"
+        )
+
+    if "school" in command:
+        return ToolRequest(
+            tool="open_school_workspace"
+        )
+
+    return None

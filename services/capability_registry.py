@@ -100,10 +100,34 @@ CAPABILITY_REGISTRY = {
     ),
 
     "workspace_management": Capability(
-        name="Workspace Management",
-        description="Open configured development workspaces.",
+    name="Workspace Management",
+    description="Open configured development workspaces.",
+    category="development",
+    available=True,
+    ),
+
+    "coding_workspace": Capability(
+        name="Coding Workspace",
+        description="Open the configured coding workspace.",
         category="development",
         available=True,
+        tool_name="open_coding_workspace",
+    ),
+
+    "aws_workspace": Capability(
+        name="AWS Workspace",
+        description="Open the configured AWS workspace.",
+        category="development",
+        available=True,
+        tool_name="open_aws_workspace",
+    ),
+
+    "school_workspace": Capability(
+        name="School Workspace",
+        description="Open the configured school workspace.",
+        category="development",
+        available=True,
+        tool_name="open_school_workspace",
     ),
 
     "memory": Capability(
