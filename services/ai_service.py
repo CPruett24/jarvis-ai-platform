@@ -9,7 +9,7 @@ from services.conversation_service import (
 from services.memory_service import get_memory_context
 from services.status_service import update_status
 from commands.tool_manager import get_tool_descriptions
-from services.conversation_manager import get_topic
+from services.conversation_manager import get_pending_request, get_topic, get_pending_request
 from services.project_service import get_file_content
 from services.capability_service import get_capability_context
 from services.agents.hermes_acp import (
@@ -114,6 +114,8 @@ def ask_ai(
 
     topic = get_topic()
 
+    pending_request = get_pending_request()
+
     capability_context = get_capability_context()
 
     conversation_context = ""
@@ -128,6 +130,26 @@ def ask_ai(
                 f"{topic['filename']}.\n"
                 "The user may ask follow-up questions "
                 "about this file without naming it again."
+            )
+
+    if pending_request:
+
+        missing = pending_request.get(
+            "missing"
+        )
+
+        clarification_prompt = pending_request.get(
+            "prompt"
+        )
+
+        if clarification_prompt:
+
+            conversation_context += (
+                "\n\nPending clarification:\n"
+                f"JARVIS is waiting for the user to provide "
+                f"{missing or 'the missing information'}.\n"
+                f"Current clarification prompt: "
+                f"{clarification_prompt}"
             )
 
     print("\nMEMORY CONTEXT:")
@@ -489,6 +511,8 @@ def stream_ai_response(
 
     topic = get_topic()
 
+    pending_request = get_pending_request()
+
     capability_context = get_capability_context()
 
     conversation_context = ""
@@ -503,6 +527,26 @@ def stream_ai_response(
                 f"{topic['filename']}.\n"
                 "The user may ask follow-up questions "
                 "about this file without naming it again."
+            )
+
+    if pending_request:
+
+        missing = pending_request.get(
+            "missing"
+        )
+
+        clarification_prompt = pending_request.get(
+            "prompt"
+        )
+
+        if clarification_prompt:
+
+            conversation_context += (
+                "\n\nPending clarification:\n"
+                f"JARVIS is waiting for the user to provide "
+                f"{missing or 'the missing information'}.\n"
+                f"Current clarification prompt: "
+                f"{clarification_prompt}"
             )
 
     code_context = ""

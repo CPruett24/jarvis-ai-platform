@@ -1,4 +1,6 @@
+from models.tool_request import ToolRequest
 from services.conversation_manager import (
+    has_pending_request,
     set_topic,
     get_topic,
     clear_topic,
@@ -8,8 +10,11 @@ from services.conversation_manager import (
     record_turn,
     get_conversation_context,
     clear_context,
+    set_pending_request,
+    get_pending_request,
+    clear_pending_request,
+    complete_pending_request,
 )
-
 
 def test_topic_can_be_set_and_retrieved():
 
@@ -120,3 +125,100 @@ def test_conversation_context_records_turns():
     )
 
     clear_context()
+
+def test_pending_request_preserves_prompt():
+
+    clear_pending_request()
+
+    request = ToolRequest(
+        tool="explain_file",
+        arguments={},
+    )
+
+    set_pending_request(
+        {
+            "request": request,
+            "missing": "filename",
+            "candidates": None,
+            "prompt": (
+                "Sure. Which file would you like me to explain?"
+            ),
+        }
+    )
+
+    pending = get_pending_request()
+
+    assert pending is not None
+    assert pending["missing"] == "filename"
+    assert pending["prompt"] == (
+        "Sure. Which file would you like me to explain?"
+    )
+
+    clear_pending_request()
+
+def test_pending_request_can_be_completed_with_filename():
+
+    clear_pending_request()
+
+    request = ToolRequest(
+        tool="explain_file",
+        arguments={},
+    )
+
+    set_pending_request(
+        {
+            "request": request,
+            "missing": "filename",
+            "candidates": None,
+            "prompt": (
+                "Sure. Which file would you like me to explain?"
+            ),
+        }
+    )
+
+    completed = complete_pending_request(
+        filename="router.py"
+    )
+
+    assert completed is not None
+    assert completed.tool == "explain_file"
+    assert (
+        completed.arguments["filename"]
+        == "router.py"
+    )
+
+    assert not has_pending_request()
+
+def test_conversation_context_contains_pending_request():
+
+    clear_pending_request()
+
+    request = ToolRequest(
+        tool="explain_file",
+        arguments={},
+    )
+
+    set_pending_request(
+        {
+            "request": request,
+            "missing": "filename",
+            "candidates": None,
+            "prompt": (
+                "Sure. Which file would you like me to explain?"
+            ),
+        }
+    )
+
+    context = get_conversation_context()
+
+    assert context["pending_request"] is not None
+    assert (
+        context["pending_request"]["missing"]
+        == "filename"
+    )
+    assert (
+        context["pending_request"]["prompt"]
+        == "Sure. Which file would you like me to explain?"
+    )
+
+    clear_pending_request()

@@ -4,9 +4,16 @@ from models.information import (
     InformationSource,
 )
 
+from services.conversation_manager import (
+    set_pending_request,
+    clear_pending_request,
+)
+
 from services.grounding_service import (
     create_information_item,
 )
+
+from models.tool_request import ToolRequest
 
 
 class FakeChunk:
@@ -593,3 +600,92 @@ def test_ask_ai_includes_grounding_rules_in_system_prompt(
     assert "[agent_result]" in prompt
     assert "not automatically verified" in prompt
     assert "inferred information" in prompt
+
+def test_ask_ai_includes_pending_clarification_context(
+    monkeypatch,
+):
+    captured = {}
+
+    def fake_chat(**kwargs):
+        captured["chat"] = kwargs
+
+        return {
+            "message": {
+                "content": "Which file would you like me to explain?"
+            }
+        }
+
+    set_pending_request(
+        {
+            "request": ToolRequest(
+                tool="explain_file",
+                arguments={},
+            ),
+            "missing": "filename",
+            "candidates": None,
+            "prompt": (
+                "Sure. Which file would you like me to explain?"
+            ),
+        }
+    )
+
+    monkeypatch.setattr(
+        ai_service,
+        "get_memory_information",
+        lambda: [],
+    )
+
+    monkeypatch.setattr(
+        ai_service,
+        "get_topic",
+        lambda: None,
+    )
+
+    monkeypatch.setattr(
+        ai_service,
+        "get_capability_context",
+        lambda: "No capabilities available.",
+    )
+
+    monkeypatch.setattr(
+        ai_service,
+        "get_source_aware_history",
+        lambda: [],
+    )
+
+    monkeypatch.setattr(
+        ai_service,
+        "update_status",
+        lambda status: None,
+    )
+
+    monkeypatch.setattr(
+        ai_service,
+        "chat",
+        fake_chat,
+    )
+
+    try:
+        ai_service.ask_ai(
+            "Which file?"
+        )
+
+        system_message = (
+            captured["chat"]["messages"][0]
+        )
+
+        prompt = system_message["content"]
+
+        assert "Pending clarification:" in prompt
+        assert (
+            "JARVIS is waiting for the user "
+            "to provide filename."
+            in prompt
+        )
+        assert (
+            "Sure. Which file would you like me to explain?"
+            in prompt
+        )
+
+    finally:
+        clear_pending_request()

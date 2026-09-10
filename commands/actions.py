@@ -425,6 +425,9 @@ def explain_file_action(filename=None, depth=1,):
                 ),
                 "missing": "filename",
                 "candidates": None,
+                "prompt": (
+                    "Sure. Which file would you like me to explain?"
+                ),
             }
         )
 
@@ -436,6 +439,11 @@ def explain_file_action(filename=None, depth=1,):
 
     if len(matches) > 1:
 
+        names = ", ".join(
+            path.name
+            for path in matches
+        )
+
         set_pending_request(
             {
                 "request": ToolRequest(
@@ -444,6 +452,10 @@ def explain_file_action(filename=None, depth=1,):
                 ),
                 "missing": "filename",
                 "candidates": matches,
+                "prompt": (
+                    f"I found multiple matching files: {names}. "
+                    "Which one would you like me to explain?"
+                ),
             }
         )
 
@@ -453,8 +465,8 @@ def explain_file_action(filename=None, depth=1,):
         )
 
         speak(
-            f"I found multiple matches: {names}. "
-            "Which one did you mean?"
+            f"I found multiple matching files: {names}. "
+            "Which one would you like me to explain?"
         )
 
         return

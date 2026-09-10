@@ -1,6 +1,9 @@
 from enum import Enum
 from models.tool_request import ToolRequest
+from dataclasses import dataclass
+from enum import Enum
 
+from models.tool_request import ToolRequest
 
 FOLLOW_UP_PHRASES = {
     "tell me more",
@@ -21,6 +24,12 @@ SWITCH_TOPIC_PHRASES = {
     "next",
 }
 
+@dataclass
+class PendingRequest:
+    request: ToolRequest
+    missing: str
+    candidates: list | None = None
+    prompt: str = ""
 
 class ConversationMode(Enum):
     CHAT = "chat"
@@ -112,9 +121,11 @@ def clear_context():
 def get_conversation_context():
 
     topic = get_topic()
+    pending = get_pending_request()
 
     return {
         "topic": topic.copy() if topic else None,
+        "pending_request": pending.copy() if pending else None,
         "recent_turns": get_recent_turns(),
     }
 
