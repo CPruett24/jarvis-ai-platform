@@ -18,7 +18,7 @@ def test_execute_current_time():
     assert result.error is None
 
 
-def test_unavailable_calendar():
+def test_unavailable_calendar_returns_failure():
 
     result = execute_capability(
         "calendar"
@@ -28,7 +28,7 @@ def test_unavailable_calendar():
     assert result.capability == "calendar"
     assert result.error is not None
 
-def test_unavailable_calendar():
+def test_unavailable_calendar_returns_capability_reason():
 
     result = execute_capability(
         "calendar"

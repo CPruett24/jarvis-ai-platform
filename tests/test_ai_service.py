@@ -407,3 +407,123 @@ def test_ask_ai_receives_agent_result_context(
             "source": "ollama",
         },
     ]
+
+def test_ask_ai_receives_observed_tool_result_context(
+    monkeypatch,
+):
+
+    captured = {}
+
+    saved_messages = []
+
+    def fake_add_message(
+        role,
+        message,
+        source=None,
+    ):
+        saved_messages.append(
+            {
+                "role": role,
+                "message": message,
+                "source": source,
+            }
+        )
+
+    def fake_chat(
+        **kwargs,
+    ):
+
+        captured["chat"] = kwargs
+
+        return {
+            "message": {
+                "content": "Your current Git branch is main."
+            }
+        }
+
+    monkeypatch.setattr(
+        ai_service,
+        "add_message",
+        fake_add_message,
+    )
+
+    monkeypatch.setattr(
+        ai_service,
+        "get_memory_information",
+        lambda: [],
+    )
+
+    monkeypatch.setattr(
+        ai_service,
+        "get_topic",
+        lambda: None,
+    )
+
+    monkeypatch.setattr(
+        ai_service,
+        "get_source_aware_history",
+        lambda: [
+            {
+                "role": "assistant",
+                "content": (
+                    "Observed tool result:\n"
+                    "[observed] branch: main"
+                ),
+            },
+        ],
+    )
+
+    monkeypatch.setattr(
+        ai_service,
+        "get_capability_context",
+        lambda: "No capabilities available.",
+    )
+
+    monkeypatch.setattr(
+        ai_service,
+        "update_status",
+        lambda status: None,
+    )
+
+    monkeypatch.setattr(
+        ai_service,
+        "chat",
+        fake_chat,
+    )
+
+    result = ai_service.ask_ai(
+        "What branch am I currently on?"
+    )
+
+    assert result == (
+        "Your current Git branch is main."
+    )
+
+    messages = captured["chat"]["messages"]
+
+    assert any(
+        message["content"]
+        == (
+            "Observed tool result:\n"
+            "[observed] branch: main"
+        )
+        for message in messages
+    )
+
+    assert saved_messages == [
+        {
+            "role": "user",
+            "message": (
+                "What branch am I currently on?"
+            ),
+            "source": "user",
+        },
+        {
+            "role": "assistant",
+            "message": (
+                "Your current Git branch is main."
+            ),
+            "source": "ollama",
+        },
+    ]
+
