@@ -527,3 +527,69 @@ def test_ask_ai_receives_observed_tool_result_context(
         },
     ]
 
+def test_ask_ai_includes_grounding_rules_in_system_prompt(
+    monkeypatch,
+):
+    captured = {}
+
+    def fake_chat(**kwargs):
+        captured["chat"] = kwargs
+
+        return {
+            "message": {
+                "content": "I can only report what was actually observed."
+            }
+        }
+
+    monkeypatch.setattr(
+        ai_service,
+        "get_memory_information",
+        lambda: [],
+    )
+
+    monkeypatch.setattr(
+        ai_service,
+        "get_topic",
+        lambda: None,
+    )
+
+    monkeypatch.setattr(
+        ai_service,
+        "get_source_aware_history",
+        lambda: [],
+    )
+
+    monkeypatch.setattr(
+        ai_service,
+        "get_capability_context",
+        lambda: "No capabilities available.",
+    )
+
+    monkeypatch.setattr(
+        ai_service,
+        "update_status",
+        lambda status: None,
+    )
+
+    monkeypatch.setattr(
+        ai_service,
+        "chat",
+        fake_chat,
+    )
+
+    ai_service.ask_ai(
+        "What do you know about my current state?"
+    )
+
+    system_message = captured["chat"]["messages"][0]
+
+    assert system_message["role"] == "system"
+
+    prompt = system_message["content"]
+
+    assert "Never invent capabilities" in prompt
+    assert "[observed]" in prompt
+    assert "[remembered]" in prompt
+    assert "[agent_result]" in prompt
+    assert "not automatically verified" in prompt
+    assert "inferred information" in prompt
