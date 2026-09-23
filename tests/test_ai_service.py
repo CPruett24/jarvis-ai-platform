@@ -1,3 +1,5 @@
+import pytest
+
 import services.ai_service as ai_service
 
 from models.information import (
@@ -689,3 +691,119 @@ def test_ask_ai_includes_pending_clarification_context(
 
     finally:
         clear_pending_request()
+
+
+@pytest.mark.parametrize("context_kind", ["full", "empty", "missing_file", "no_prompt"])
+def test_conversation_paths_receive_identical_system_rules_and_context(
+    monkeypatch, context_kind,
+):
+    captured = {}
+    saved = []
+    statuses = []
+    topic = None if context_kind == "empty" else {
+        "type": "file", "filename": "router.py", "depth": 2,
+    }
+    pending = None if context_kind == "empty" else {
+        "request": ToolRequest("explain_file"),
+        "missing": "filename",
+        "prompt": "Which file should I explain?" if context_kind != "no_prompt" else "",
+    }
+    history = [
+        {"role": "assistant", "content": "[observed] branch: main"},
+        {"role": "assistant", "content": "[agent_result] branch: development"},
+        {"role": "user", "content": "Explain that."},
+    ]
+    monkeypatch.setattr(ai_service, "get_topic", lambda: topic)
+    monkeypatch.setattr(ai_service, "get_pending_request", lambda: pending)
+    monkeypatch.setattr(ai_service, "get_memory_information", lambda: [] if context_kind == "empty" else [
+        create_information_item("Your deadline is Friday.", InformationSource.REMEMBERED),
+    ])
+    monkeypatch.setattr(ai_service, "get_capability_context", lambda: "Calendar [unavailable]; current_time [available]")
+    monkeypatch.setattr(ai_service, "get_source_aware_history", lambda: list(history))
+    monkeypatch.setattr(ai_service, "update_status", statuses.append)
+    monkeypatch.setattr(ai_service, "add_message", lambda role, text, source: saved.append((role, text, source)))
+
+    def get_file(filename):
+        assert filename == "router.py"
+        return None if context_kind == "missing_file" else {"content": "def process(command): pass"}
+
+    def chat(**kwargs):
+        captured["ollama"] = kwargs
+        if kwargs["stream"]:
+            return iter([FakeChunk("Hello"), FakeChunk(""), FakeChunk(" there.")])
+        return {"message": {"content": "Hello there."}}
+
+    class Hermes:
+        def stream_prompt(self, session_id, prompt, timeout):
+            assert session_id == "test-session"
+            assert timeout == 300
+            captured["hermes"] = prompt
+            return iter(["Hello", "", " there."])
+
+    monkeypatch.setattr(ai_service, "get_file_content", get_file)
+    monkeypatch.setattr(ai_service, "chat", chat)
+    monkeypatch.setattr(ai_service, "get_hermes_session", lambda: (Hermes(), "test-session"))
+
+    assert ai_service.ask_ai("Explain that.") == "Hello there."
+    messages = captured["ollama"]["messages"]
+    assert messages[0]["role"] == "system"
+    assert messages[1:] == history
+    assert captured["ollama"]["stream"] is False
+
+    chunks = []
+    assert ai_service.ask_ai("Explain that.", stream=True, on_chunk=chunks.append) == "Hello there."
+    assert captured["ollama"]["messages"] == messages
+    assert captured["ollama"]["stream"] is True
+    assert chunks == ["Hello", " there."]
+
+    chunks = []
+    assert list(ai_service.stream_ai_response("Explain that.", on_chunk=chunks.append)) == ["Hello", " there."]
+    assert chunks == ["Hello", " there."]
+    # Compare the actual provider payloads, including all rules and source-aware history.
+    assert captured["hermes"] == "\n\n".join(
+        f"--- {message['role'].upper() if message['role'] != 'system' else 'SYSTEM INSTRUCTIONS'} ---\n{message['content']}"
+        for message in messages
+    )
+
+    system = messages[0]["content"]
+    for rule in [
+        "You are JARVIS, a personal AI assistant",
+        "Always address the user as 'you' and 'your'.",
+        "When answering normal conversational questions, answer directly and naturally.",
+        "Do not use tools, code execution, terminal commands, browser tools, or other external actions for simple questions that you can answer directly.",
+        "Only use a tool when the user's request genuinely requires an external action or information that cannot be answered from the conversation context.",
+        "Never invent capabilities, actions, access, information, or results.",
+        "Never imply that you have information simply because the user asked about it.",
+        "If a capability is unavailable, do not infer, guess, or imply the current state of that system.",
+        "Do not say that something is empty, unavailable, completed, scheduled, sent, checked, or found unless you actually have the data or executed the capability that establishes that fact.",
+        "Never claim that you checked a calendar, email, messages, browser, smart-home device, or other external system unless a real capability for that system is available and was actually executed.",
+        "Treat [observed] information as information returned by a real tool or source.",
+        "Treat [remembered] information as information retrieved from persistent memory.",
+        "Treat [agent_result] information as a report produced by an external agent. It is not automatically verified.",
+        "Treat inferred information as reasoning or interpretation, not as a directly observed fact.",
+        "Never silently upgrade inferred or agent-reported information into observed information.",
+        "When provenance matters, preserve the distinction in your response.",
+        "If information conflicts, acknowledge the conflict rather than silently choosing a source.",
+        "Treat it as remembered information, not as something you directly observed:",
+        "Calendar [unavailable]; current_time [available]",
+    ]:
+        assert rule in system
+
+    assert ("You are discussing the file router.py." in system) == (topic is not None)
+    assert ("[remembered] Your deadline is Friday." in system) == (context_kind != "empty")
+    assert ("Current file contents:" in system) == (context_kind not in {"empty", "missing_file"})
+    if topic and context_kind != "missing_file":
+        assert "def process(command): pass" in system
+    assert ("Pending clarification:" in system) == (context_kind not in {"empty", "no_prompt"})
+    if pending and pending["prompt"]:
+        assert "JARVIS is waiting for the user to provide filename." in system
+        assert pending["prompt"] in system
+    assert statuses == ["thinking", "thinking", "thinking", "listening"]
+    assert saved == [
+        ("user", "Explain that.", "user"),
+        ("assistant", "Hello there.", "ollama"),
+        ("user", "Explain that.", "user"),
+        ("assistant", "Hello there.", "ollama"),
+        ("user", "Explain that.", "user"),
+        ("assistant", "Hello there.", "hermes"),
+    ]

@@ -9,7 +9,7 @@ from services.conversation_service import (
 from services.memory_service import get_memory_context
 from services.status_service import update_status
 from commands.tool_manager import get_tool_descriptions
-from services.conversation_manager import get_pending_request, get_topic, get_pending_request
+from services.conversation_manager import get_pending_request, get_topic
 from services.project_service import get_file_content
 from services.capability_service import get_capability_context
 from services.agents.hermes_acp import (
@@ -93,18 +93,8 @@ def format_hermes_messages(messages):
 
     return "\n\n".join(parts)
 
-def ask_ai(
-    prompt,
-    stream=False,
-    on_chunk=None,
-):
-    add_message(
-        "user",
-        prompt,
-        source="user",
-    )
-
-    update_status("thinking")
+def _build_conversation_messages():
+    """Build shared behavioral rules and live context for conversational AI calls."""
 
     memory_information = get_memory_information()
 
@@ -151,10 +141,6 @@ def ask_ai(
                 f"Current clarification prompt: "
                 f"{clarification_prompt}"
             )
-
-    print("\nMEMORY CONTEXT:")
-    print(memory_context)
-    print()
 
     code_context = ""
 
@@ -203,8 +189,18 @@ def ask_ai(
                 "\nDo not say \"User's name's project "
                 "deadline is Friday.\""
 
-                "\n\nThe following memories are facts "
-                "about the person you are speaking to:\n\n"
+                "\n\nThe following information was retrieved from persistent memory. "
+                "Treat it as remembered information, not as something you directly observed:\n\n"
+
+                "\n\nCONVERSATION MODE:\n"
+                "When answering normal conversational questions, answer "
+                "directly and naturally.\n"
+                "Do not use tools, code execution, terminal commands, "
+                "browser tools, or other external actions for simple "
+                "questions that you can answer directly.\n"
+                "Only use a tool when the user's request genuinely "
+                "requires an external action or information that cannot "
+                "be answered from the conversation context.\n"
 
                 "\n\nCAPABILITY RULES:\n"
                 f"{capability_context}\n"
@@ -249,6 +245,24 @@ def ask_ai(
     messages.extend(
         get_source_aware_history()
     )
+
+    return messages
+
+
+def ask_ai(
+    prompt,
+    stream=False,
+    on_chunk=None,
+):
+    add_message(
+        "user",
+        prompt,
+        source="user",
+    )
+
+    update_status("thinking")
+
+    messages = _build_conversation_messages()
 
     response = chat(
         model="llama3.1:8b",
@@ -503,141 +517,7 @@ def stream_ai_response(
 
     update_status("thinking")
 
-    memory_information = get_memory_information()
-
-    memory_context = format_information_context(
-        memory_information
-    )
-
-    topic = get_topic()
-
-    pending_request = get_pending_request()
-
-    capability_context = get_capability_context()
-
-    conversation_context = ""
-
-    if topic:
-
-        if topic["type"] == "file":
-
-            conversation_context = (
-                "\n\nCurrent conversation topic:\n"
-                f"You are discussing the file "
-                f"{topic['filename']}.\n"
-                "The user may ask follow-up questions "
-                "about this file without naming it again."
-            )
-
-    if pending_request:
-
-        missing = pending_request.get(
-            "missing"
-        )
-
-        clarification_prompt = pending_request.get(
-            "prompt"
-        )
-
-        if clarification_prompt:
-
-            conversation_context += (
-                "\n\nPending clarification:\n"
-                f"JARVIS is waiting for the user to provide "
-                f"{missing or 'the missing information'}.\n"
-                f"Current clarification prompt: "
-                f"{clarification_prompt}"
-            )
-
-    code_context = ""
-
-    if topic:
-
-        if topic["type"] == "file":
-
-            file_info = get_file_content(
-                topic["filename"]
-            )
-
-            if file_info:
-
-                code_context = (
-                    "\n\nCurrent file contents:\n\n"
-                    f"{file_info['content']}"
-                )
-
-    messages = [
-        {
-            "role": "system",
-            "content": (
-                "You are JARVIS, a personal AI assistant "
-                "created for your user."
-
-                "\n\nYou are speaking directly to the user."
-
-                "\nAlways address the user as 'you' and 'your'."
-
-                "\nDo not refer to the user in the third person."
-
-                "\nDo not call the user 'Chandler'."
-
-                "\nDo not use phrases like 'he', 'him', "
-                "'the user', or 'Chandler' when talking "
-                "about the person you are speaking to."
-
-                "\n\nWhen discussing stored memories, "
-                "phrase them naturally."
-
-                "\nExample: say 'Your project deadline is Friday.'"
-
-                "\nExample: say 'You told me your project "
-                "deadline is Friday.'"
-
-                "\nDo not say \"User's name's project "
-                "deadline is Friday.\""
-
-                "\n\nThe following information was retrieved from persistent memory. "
-                "Treat it as remembered information, not as something you directly observed:\n\n"
-
-                "\n\nCONVERSATION MODE:\n"
-                "When answering normal conversational questions, answer "
-                "directly and naturally.\n"
-                "Do not use tools, code execution, terminal commands, "
-                "browser tools, or other external actions for simple "
-                "questions that you can answer directly.\n"
-                "Only use a tool when the user's request genuinely "
-                "requires an external action or information that cannot "
-                "be answered from the conversation context.\n"
-
-                "\n\nCAPABILITY RULES:\n"
-                f"{capability_context}\n"
-                "\nNever invent capabilities, actions, access, "
-                "information, or results.\n"
-                "Never imply that you have information simply "
-                "because the user asked about it.\n"
-                "If a capability is unavailable, do not infer, "
-                "guess, or imply the current state of that system.\n"
-                "Do not say that something is empty, unavailable, "
-                "completed, scheduled, sent, checked, or found unless "
-                "you actually have the data or executed the capability "
-                "that establishes that fact.\n"
-                "Never claim that you checked a calendar, email, "
-                "messages, browser, smart-home device, or other "
-                "external system unless a real capability for that "
-                "system is available and was actually executed.\n"
-
-                f"{memory_context}"
-
-                f"{conversation_context}"
-
-                f"{code_context}"
-            ),
-        }
-    ]
-
-    messages.extend(
-        get_source_aware_history()
-    )
+    messages = _build_conversation_messages()
 
     hermes, session_id = get_hermes_session()
 
