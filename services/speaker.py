@@ -6,7 +6,7 @@ from services.status_service import (
     update_status,
     update_last_response,
 )
-
+import time
 
 class InterruptibleSpeaker:
     """
@@ -28,12 +28,21 @@ class InterruptibleSpeaker:
         update_status("speaking")
         update_last_response(text)
 
+        tts_started = time.perf_counter()
+
         engine = pyttsx3.init()
+
+        tts_initialized = time.perf_counter()
+
+        print(
+            "[Voice timing] "
+            f"tts_init="
+            f"{tts_initialized - tts_started:.2f}s"
+        )
 
         with self.lock:
             self.engine = engine
             self.speaking = True
-
         try:
             engine.say(text)
             engine.runAndWait()

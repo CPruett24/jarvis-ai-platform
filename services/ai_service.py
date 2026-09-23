@@ -508,13 +508,13 @@ def stream_ai_response(
     cancellation_event=None,
 ):
     """
-    Stream a conversational AI response using the same
-    memory, conversation-topic, code, history, and system
-    prompt logic used by ask_ai().
+    Stream a normal conversational AI response through Ollama.
 
-    cancellation_event stops local streaming cooperatively, not remote Hermes
-    execution. Acknowledged cancellation raises OperationCancelled and does
-    not commit an assistant response or a late completion status.
+    Hermes remains a separate external-agent capability and should
+    only be selected by the router when the request requires it.
+
+    cancellation_event cooperatively stops local streaming. A
+    cancelled response is not committed to conversation history.
     """
 
     check_cancelled(cancellation_event)
@@ -529,57 +529,45 @@ def stream_ai_response(
 
     messages = _build_conversation_messages()
 
-    global _hermes_session_id
-
     check_cancelled(cancellation_event)
-    with _hermes_session_lock:
-        hermes, session_id = get_hermes_session()
-        # Reserve the session before remote work starts. A cancelled or failed
-        # stream never returns it, even if its remote request is still running.
-        _hermes_session_id = None
 
-    hermes_prompt = format_hermes_messages(
-        messages
+    response = chat(
+        model="llama3.1:8b",
+        messages=messages,
+        stream=True,
     )
 
     full_response = ""
 
-    check_cancelled(cancellation_event)
-    options = {"timeout": 300}
-    if cancellation_event is not None:
-        options["cancellation_event"] = cancellation_event
-    response = hermes.stream_prompt(session_id, hermes_prompt, **options)
     try:
-        while True:
+        for chunk in response:
             check_cancelled(cancellation_event)
-            try:
-                content = next(response)
-            except StopIteration:
-                break
-            check_cancelled(cancellation_event)
-            if not content:
+
+            text = chunk["message"]["content"]
+
+            if not text:
                 continue
-            full_response += content
+
+            full_response += text
+
             if on_chunk:
-                on_chunk(content)
-            yield content
+                on_chunk(text)
+
+            yield text
+
         check_cancelled(cancellation_event)
+
     finally:
         close = getattr(response, "close", None)
+
         if close is not None:
             close()
-
-    # Exhaustion confirms the prompt worker completed and its handler was
-    # removed. Only normally completed sessions are eligible for another turn.
-    with _hermes_session_lock:
-        if _hermes_session_id is None:
-            _hermes_session_id = session_id
 
     if full_response:
         add_message(
             "assistant",
             full_response,
-            source="hermes",
+            source="ollama",
         )
 
     update_status("listening")

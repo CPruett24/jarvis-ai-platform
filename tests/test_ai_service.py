@@ -733,16 +733,8 @@ def test_conversation_paths_receive_identical_system_rules_and_context(
             return iter([FakeChunk("Hello"), FakeChunk(""), FakeChunk(" there.")])
         return {"message": {"content": "Hello there."}}
 
-    class Hermes:
-        def stream_prompt(self, session_id, prompt, timeout):
-            assert session_id == "test-session"
-            assert timeout == 300
-            captured["hermes"] = prompt
-            return iter(["Hello", "", " there."])
-
     monkeypatch.setattr(ai_service, "get_file_content", get_file)
     monkeypatch.setattr(ai_service, "chat", chat)
-    monkeypatch.setattr(ai_service, "get_hermes_session", lambda: (Hermes(), "test-session"))
 
     assert ai_service.ask_ai("Explain that.") == "Hello there."
     messages = captured["ollama"]["messages"]
@@ -757,13 +749,20 @@ def test_conversation_paths_receive_identical_system_rules_and_context(
     assert chunks == ["Hello", " there."]
 
     chunks = []
-    assert list(ai_service.stream_ai_response("Explain that.", on_chunk=chunks.append)) == ["Hello", " there."]
+
+    assert list(
+        ai_service.stream_ai_response(
+            "Explain that.",
+            on_chunk=chunks.append,
+        )
+    ) == ["Hello", " there."]
+
     assert chunks == ["Hello", " there."]
-    # Compare the actual provider payloads, including all rules and source-aware history.
-    assert captured["hermes"] == "\n\n".join(
-        f"--- {message['role'].upper() if message['role'] != 'system' else 'SYSTEM INSTRUCTIONS'} ---\n{message['content']}"
-        for message in messages
-    )
+
+    # Normal conversational streaming should use the same
+    # Ollama message payload as the non-streaming path.
+    assert captured["ollama"]["messages"] == messages
+    assert captured["ollama"]["stream"] is True
 
     system = messages[0]["content"]
     for rule in [
@@ -805,5 +804,5 @@ def test_conversation_paths_receive_identical_system_rules_and_context(
         ("user", "Explain that.", "user"),
         ("assistant", "Hello there.", "ollama"),
         ("user", "Explain that.", "user"),
-        ("assistant", "Hello there.", "hermes"),
+        ("assistant", "Hello there.", "ollama"),
     ]

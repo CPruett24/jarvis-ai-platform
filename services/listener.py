@@ -1,6 +1,7 @@
 import speech_recognition as sr
 from services.transcription_service import transcribe_audio
 import threading
+import time
 
 recognizer = sr.Recognizer()
 
@@ -27,17 +28,40 @@ def listen_for_speech():
     with microphone as source:
 
         try:
+            listen_started = time.perf_counter()
+
             audio = recognizer.listen(
                 source,
                 timeout=10,
-                phrase_time_limit=10
+                phrase_time_limit=10,
             )
+
+            audio_captured = time.perf_counter()
 
         except sr.WaitTimeoutError:
             return ""
 
     try:
+        transcription_started = time.perf_counter()
+
         command = transcribe_audio(audio)
+
+        transcription_finished = time.perf_counter()
+
+        capture_time = (
+            audio_captured - listen_started
+        )
+
+        transcription_time = (
+            transcription_finished
+            - transcription_started
+        )
+
+        print(
+            "[Voice timing] "
+            f"capture={capture_time:.2f}s "
+            f"transcription={transcription_time:.2f}s"
+        )
 
         print(f"You: {command}")
 
@@ -47,7 +71,9 @@ def listen_for_speech():
         return ""
 
     except sr.RequestError:
-        print("Speech recognition service unavailable.")
+        print(
+            "Speech recognition service unavailable."
+        )
 
         return ""
     
