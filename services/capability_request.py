@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import re
 
 from services.capability_registry import (
     get_capability,
@@ -31,23 +32,20 @@ class CapabilityManagementRequest:
 
 
 CAPABILITY_PATTERNS = {
+    # Calendar/email patterns are full-request expressions: a subject mention
+    # alone must never imply a request to inspect private/current state.
     "calendar": (
-        "calendar",
-        "schedule",
-        "appointments",
-        "appointment",
-        "events",
-        "event",
-        "what's on my calendar",
-        "whats on my calendar",
-        "what is on my calendar",
+        r"(?:check|show|list|open) (?:me )?(?:my |the )?(?:calendar|schedule|appointments?|events?)(?: today| tomorrow)?",
+        r"(?:what is|what's|whats) on my (?:calendar|schedule)(?: today| tomorrow)?",
+        r"(?:do i have (?:any )?(?:appointments?|events?)|what do i have scheduled)(?: today| tomorrow)?",
+        r"what (?:appointments|events) do i have(?: today| tomorrow)?",
+        r"schedule (?:an? )?(?:appointment|event|meeting)(?: .+)?",
     ),
-
     "email": (
-        "email",
-        "emails",
-        "inbox",
-        "mailbox",
+        r"(?:check|show|read|list|open) (?:me )?(?:my |the )?(?:emails?|inbox|mailbox)(?: today)?",
+        r"(?:what is|what's|whats) in my (?:inbox|mailbox)",
+        r"do i have (?:any )?(?:new |unread )?emails?(?: today)?",
+        r"(?:send|draft|write) an? email(?: .+)?",
     ),
 
     "browser_automation": (
@@ -196,6 +194,17 @@ def normalize_request(command):
     ).strip(".,!? ")
 
 
+def is_capability_explanation(command):
+    """Recognize bounded conceptual questions, not requests for current state."""
+    subject = r"(?:git branch|git status|calendar|email|code review|(?:coding|aws|school) workspace)"
+    normalized = re.sub(r"^(?:can you |could you |please )", "", normalize_request(command))
+    return bool(re.fullmatch(
+        rf"(?:(?:what is|what's|explain) (?:a |an |the )?{subject}"
+        rf"|explain what {subject} does|how does (?:a |an |the )?{subject} work)",
+        normalized,
+    ))
+
+
 def detect_capability_management_request(
     command,
 ):
@@ -219,6 +228,9 @@ def detect_capability_management_request(
         "why can you not use ",
         "tell me about ",
         "what do you know about ",
+        "do i have ",
+        "do you have ",
+        "can you access ",
     )
 
     is_detail_request = any(
@@ -234,7 +246,13 @@ def detect_capability_management_request(
 
             for pattern in patterns:
 
-                if pattern in normalized:
+                forms = {
+                    f"is {pattern} {state}"
+                    for state in ("available", "enabled", "disabled", "unavailable")
+                }
+                forms.update(f"{prefix}{pattern}" for prefix in detail_phrases if prefix != "is ")
+                forms.update(f"{prefix}{pattern} access" for prefix in ("do i have ", "do you have "))
+                if normalized in forms:
 
                     if get_capability(
                         capability_name
@@ -255,7 +273,7 @@ def detect_capability_management_request(
 
         for pattern in patterns:
 
-            if pattern in normalized:
+            if pattern == normalized:
 
                 return CapabilityManagementRequest(
                     action=action,
@@ -276,6 +294,8 @@ def detect_capability_request(command):
 
     normalized = normalize_request(command)
 
+    normalized = re.sub(r"^(?:can you |could you |please )", "", normalized)
+
     if not normalized:
         return CapabilityRequest(
             capability_name="",
@@ -287,7 +307,12 @@ def detect_capability_request(command):
 
         for pattern in patterns:
 
-            if pattern in normalized:
+            if capability_name in {"calendar", "email"}:
+                matched = re.fullmatch(pattern, normalized) is not None
+            else:
+                matched = normalized == pattern or normalized.startswith(pattern + " ")
+
+            if matched:
 
                 capability = get_capability(
                     capability_name

@@ -1,5 +1,14 @@
 from models.tool_request import ToolRequest
 from services.command_parser import parse_workspace_command
+import pytest
+
+
+@pytest.mark.parametrize("command", [
+    "what is a coding workspace", "how does an aws workspace work",
+    "tell me about my school workspace", "do not open my coding workspace",
+])
+def test_workspace_subject_does_not_imply_open_action(command):
+    assert parse_workspace_command(command) is None
 
 
 def test_parse_coding_workspace_request():

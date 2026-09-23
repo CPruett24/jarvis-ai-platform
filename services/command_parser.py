@@ -88,7 +88,11 @@ def parse_workspace_command(command):
 
     command = command.lower().strip()
 
-    if "workspace" not in command:
+    if not re.fullmatch(
+        r"(?:(?:can you |could you )?(?:also )?|please )"
+        r"(?:open|launch) (?:my |the )?(?:coding|aws|school) workspace",
+        command.rstrip(".!?"),
+    ):
         return None
 
     if "coding" in command:

@@ -63,6 +63,7 @@ from services.capability_request import (
     detect_capability_request,
     detect_capability_management_request,
     detect_agent_request,
+    is_capability_explanation,
 )
 
 from services.capability_service import (
@@ -992,7 +993,9 @@ def process(
     # a file in the project.
     #
 
-    if normalized_command.startswith(
+    conceptual_capability = is_capability_explanation(normalized_command)
+
+    if conceptual_capability or normalized_command.startswith(
         "explain "
     ):
 
@@ -1008,7 +1011,7 @@ def process(
 
         file_target_exists = False
 
-        if active_topic:
+        if active_topic and not conceptual_capability:
 
             if active_topic.get(
                 "type"
@@ -1016,7 +1019,7 @@ def process(
 
                 file_target_exists = True
 
-        if not file_target_exists:
+        if not file_target_exists and not conceptual_capability:
 
             file_info = get_file_content(
                 explanation_target
@@ -1027,6 +1030,10 @@ def process(
                 file_target_exists = True
 
         if not file_target_exists:
+
+            if conceptual_capability and not allow_interruption:
+                speak(ask_ai(normalized_command))
+                return
 
             print(
                 "[Router] General explanation detected."

@@ -1,7 +1,28 @@
+import pytest
+
 from services.capability_request import (
     normalize_request,
     detect_capability_request,
+    detect_capability_management_request,
 )
+
+
+@pytest.mark.parametrize("command", [
+    "what is a calendar", "how does email work", "what is an event loop",
+    "is email encryption secure", "tell me about email encryption",
+    "what is a code review", "explain how to browse the web",
+    "my calendar design uses a grid", "explain what capabilities are available means",
+])
+def test_subject_mentions_do_not_select_capabilities(command):
+    assert not detect_capability_request(command).matched
+    assert not detect_capability_management_request(command).matched
+
+
+def test_unregistered_capability_is_not_claimed(monkeypatch):
+    from services import capability_request
+    monkeypatch.setattr(capability_request, "get_capability", lambda name: None)
+    assert not detect_capability_request("check my calendar").matched
+    assert not detect_capability_management_request("do I have calendar access").matched
 
 
 def test_normalize_request():
