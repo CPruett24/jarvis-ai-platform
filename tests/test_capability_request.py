@@ -102,3 +102,36 @@ def test_empty_request():
     result = detect_capability_request("")
 
     assert result.matched is False
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "browse the web",
+        "browse the internet",
+        "open a website",
+        "go to a website",
+        "use the browser",
+    ],
+)
+def test_explicit_browser_control_selects_browser_capability(
+    command,
+):
+    result = detect_capability_request(command)
+
+    assert result.matched
+    assert result.capability_name == "browser_automation"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "browse the web for Python 3.13 changes",
+        "browse the internet for Python 3.13 changes",
+    ],
+)
+def test_browser_research_does_not_select_browser_capability(
+    command,
+):
+    result = detect_capability_request(command)
+
+    assert not result.matched

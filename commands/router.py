@@ -1344,6 +1344,21 @@ def process(
         return
 
     # =========================================================
+    # DYNAMIC MEMORY COMMAND
+    # =========================================================
+    #
+    # Explicit memory actions must be resolved before the
+    # conversational fallback so they cannot be consumed as
+    # ordinary conversation.
+    #
+
+    if process_dynamic_command(
+        normalized_command
+    ):
+        clear_pending_request()
+        return
+
+    # =========================================================
     # CONVERSATION
     # =========================================================
 
@@ -1562,16 +1577,6 @@ def process(
             return
 
         execute_tool(parsed)
-
-        return
-
-    # =========================================================
-    # DYNAMIC COMMAND
-    # =========================================================
-
-    if process_dynamic_command(
-        normalized_command
-    ):
 
         return
 

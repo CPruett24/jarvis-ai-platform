@@ -5,7 +5,7 @@ import pytest
 from commands import router, tool_manager
 from services import capability_registry, capability_state
 from services import conversation_manager as conversation
-
+from services.agents.base_agent import AgentExecutionResult
 
 @pytest.fixture(autouse=True)
 def isolated_state():
@@ -100,3 +100,50 @@ def test_unavailable_integration_is_reported_without_execution_or_ai(monkeypatch
     router.process(command)
     assert len(spoken) == 1
     assert "not been configured" in spoken[0]
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "browse the web for Python 3.13 changes",
+        "browse the internet for Python 3.13 changes",
+    ],
+)
+def test_browser_research_routes_to_hermes(
+    monkeypatch,
+    command,
+):
+    requests = []
+
+    class FakeAgent:
+        available = True
+
+    def fake_execute_agent(agent_name, task):
+        requests.append((agent_name, task))
+
+        return AgentExecutionResult(
+            success=True,
+            agent=agent_name,
+            message="Research result.",
+        )
+
+    monkeypatch.setattr(
+        router,
+        "get_agent",
+        lambda name: FakeAgent(),
+    )
+    monkeypatch.setattr(
+        router,
+        "execute_agent",
+        fake_execute_agent,
+    )
+    monkeypatch.setattr(
+        router,
+        "speak",
+        lambda text: None,
+    )
+
+    router.process(command)
+
+    assert requests == [
+        ("hermes", "python 3.13 changes")
+    ]

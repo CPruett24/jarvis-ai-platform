@@ -307,10 +307,17 @@ def detect_capability_request(command):
 
         for pattern in patterns:
 
-            if capability_name in {"calendar", "email"}:
+            if capability_name in {
+                "calendar",
+                "email",
+                "browser_automation",
+            }:
                 matched = re.fullmatch(pattern, normalized) is not None
             else:
-                matched = normalized == pattern or normalized.startswith(pattern + " ")
+                matched = (
+                    normalized == pattern
+                    or normalized.startswith(pattern + " ")
+                )
 
             if matched:
 
