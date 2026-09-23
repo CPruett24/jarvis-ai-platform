@@ -1486,7 +1486,7 @@ def process(
 
     topic = get_topic()
 
-    if topic and (
+    if topic and topic["type"] == "file" and (
         is_code_question(
             normalized_command
         )

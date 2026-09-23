@@ -482,6 +482,10 @@ def explain_file_action(filename=None, depth=1,):
 
     file_info = get_file_content(filename)
 
+    if not file_info:
+        speak(f"I couldn't read {filename}.")
+        return
+
     speak(f"Analyzing {filename}.")
 
     from services.ai_service import explain_code

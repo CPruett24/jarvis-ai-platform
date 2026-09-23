@@ -11,6 +11,7 @@ from services.conversation_manager import (
     is_follow_up,
     is_topic_switch,
     resolve_follow_up,
+    resolve_topic_switch,
     record_turn,
     get_conversation_context,
     clear_context,
@@ -19,6 +20,86 @@ from services.conversation_manager import (
     clear_pending_request,
     complete_pending_request,
 )
+
+
+@pytest.fixture(autouse=True)
+def isolate_topic():
+    clear_topic()
+    yield
+    clear_topic()
+
+
+def test_topic_snapshots_and_default_depth():
+    original = {"type": "file", "filename": "router.py"}
+    set_topic(original)
+    assert "depth" not in original
+    original["filename"] = "changed.py"
+    snapshot = get_topic()
+    assert snapshot == {"type": "file", "filename": "router.py", "depth": 1}
+    snapshot["filename"] = "also_changed.py"
+    get_conversation_context()["topic"]["depth"] = 99
+    assert get_topic()["filename"] == "router.py"
+    assert get_topic()["depth"] == 1
+    clear_topic()
+    assert get_topic() is None
+    assert get_conversation_context()["topic"] is None
+
+
+@pytest.mark.parametrize("invalid", [
+    {}, {"type": ""}, {"type": "file"},
+    {"type": "file", "filename": " "},
+    *[{"type": "file", "filename": "router.py", "depth": depth}
+      for depth in [0, -1, True, "2", None]],
+])
+def test_invalid_topic_does_not_replace_committed_topic(invalid):
+    set_topic({"type": "file", "filename": "router.py"})
+    before = get_topic()
+    with pytest.raises(ValueError):
+        set_topic(invalid)
+    assert get_topic() == before
+
+
+@pytest.mark.parametrize("phrase", [
+    "tell me more", "explain that", "explain it", "why", "how so", "go on", "continue",
+])
+def test_follow_up_proposes_depth_without_committing(phrase):
+    set_topic({"type": "file", "filename": "router.py"})
+    for _ in range(2):
+        request = resolve_follow_up(phrase.upper() + "?")
+        assert request.arguments == {"filename": "router.py", "depth": 2}
+        assert get_topic()["depth"] == 1
+    set_topic({"type": "file", **request.arguments})
+    assert resolve_follow_up(phrase).arguments["depth"] == 3
+
+
+def test_no_topic_unsupported_topic_and_unrelated_follow_up():
+    assert resolve_follow_up("continue") is None
+    set_topic({"type": "unsupported"})
+    assert resolve_follow_up("continue") is None
+    set_topic({"type": "file", "filename": "router.py"})
+    assert resolve_follow_up("hello") is None
+    assert get_topic()["depth"] == 1
+
+
+@pytest.mark.parametrize("text", ["whynot", "continue_work", "go onward", "explain itself"])
+def test_follow_up_requires_phrase_boundary(text):
+    assert not is_follow_up(text)
+
+
+@pytest.mark.parametrize("phrase", [
+    "what about", "how about", "what's in", "now explain", "next explain", "next",
+])
+def test_topic_switch_proposes_target_without_changing_topic(phrase):
+    set_topic({"type": "file", "filename": "old.py", "depth": 3})
+    request = resolve_topic_switch(phrase + " router.py")
+    assert request.arguments == {"filename": "router.py", "depth": 1}
+    assert get_topic() == {"type": "file", "filename": "old.py", "depth": 3}
+    assert resolve_topic_switch(phrase) is None
+
+
+def test_topic_switch_requires_phrase_boundary():
+    assert not is_topic_switch("nextdoor.py")
+    assert resolve_topic_switch("nextdoor.py") is None
 
 def test_topic_can_be_set_and_retrieved():
 

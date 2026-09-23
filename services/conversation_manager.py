@@ -1,4 +1,5 @@
 import re
+from typing import NotRequired, TypedDict
 
 from enum import Enum
 from models.tool_request import ToolRequest
@@ -39,7 +40,19 @@ class ConversationMode(Enum):
     CLARIFICATION = "clarification"
 
 
-_current_topic = None
+class ConversationTopic(TypedDict):
+    """Committed topic snapshot; file topics require a filename.
+
+    Depth records the last successfully generated file explanation.
+    Other topic types can be stored but have no deterministic resolver yet.
+    """
+
+    type: str
+    depth: int
+    filename: NotRequired[str]
+
+
+_current_topic: ConversationTopic | None = None
 _pending_request = None
 
 _recent_turns = []
@@ -72,18 +85,28 @@ def has_pending_request():
 
 
 def set_topic(topic):
+    """Validate and copy a topic; callers cannot mutate stored scalar fields."""
 
     global _current_topic
 
-    if "depth" not in topic:
-        topic["depth"] = 1
+    topic = dict(topic)
+    topic.setdefault("depth", 1)
+    if not isinstance(topic.get("type"), str) or not topic["type"].strip():
+        raise ValueError("A topic requires a non-empty type.")
+    if type(topic["depth"]) is not int or topic["depth"] < 1:
+        raise ValueError("Topic depth must be a positive integer.")
+    if topic["type"] == "file" and (
+        not isinstance(topic.get("filename"), str) or not topic["filename"].strip()
+    ):
+        raise ValueError("A file topic requires a non-empty filename.")
 
     _current_topic = topic
 
 
-def get_topic():
+def get_topic() -> ConversationTopic | None:
+    """Return a snapshot, not the mutable stored topic."""
 
-    return _current_topic
+    return _current_topic.copy() if _current_topic is not None else None
 
 
 def clear_topic():
@@ -132,12 +155,16 @@ def get_conversation_context():
     }
 
 
+def _matches_phrase(command, phrase):
+    return command == phrase or command.startswith(phrase + " ")
+
+
 def is_follow_up(command):
 
-    command = command.lower().strip()
+    command = command.lower().strip().rstrip(".!?")
 
     return any(
-        command.startswith(phrase)
+        _matches_phrase(command, phrase)
         for phrase in FOLLOW_UP_PHRASES
     )
 
@@ -158,23 +185,20 @@ def debug_topic():
 
 
 def resolve_follow_up(command):
-
-    global _current_topic
+    """Propose a follow-up without committing depth before execution succeeds."""
 
     topic = get_topic()
 
-    if topic is None:
+    if topic is None or not is_follow_up(command):
         return None
 
     if topic["type"] == "file":
-
-        topic["depth"] += 1
 
         return ToolRequest(
             tool="explain_file",
             arguments={
                 "filename": topic["filename"],
-                "depth": topic["depth"],
+                "depth": topic["depth"] + 1,
             }
         )
 
@@ -243,21 +267,21 @@ def complete_pending_request(response=None):
 
 def is_topic_switch(command):
 
-    command = command.lower().strip()
+    command = command.lower().strip().rstrip(".!?")
 
     return any(
-        command.startswith(phrase)
+        _matches_phrase(command, phrase)
         for phrase in SWITCH_TOPIC_PHRASES
     )
 
 
 def resolve_topic_switch(command):
 
-    text = command.lower().strip()
+    text = command.lower().strip().rstrip(".!?")
 
-    for phrase in SWITCH_TOPIC_PHRASES:
+    for phrase in sorted(SWITCH_TOPIC_PHRASES, key=lambda phrase: (-len(phrase), phrase)):
 
-        if text.startswith(phrase):
+        if _matches_phrase(text, phrase):
 
             filename = text[len(phrase):].strip()
 
