@@ -51,4 +51,6 @@ class ConversationInterruptController:
     def reset(self):
         with self.lock:
             self.interrupted_text = None
-            self.interrupted.clear()
+            # Existing workers retain the cancelled event; a new operation gets
+            # a fresh signal rather than reviving an interrupted worker.
+            self.interrupted = threading.Event()

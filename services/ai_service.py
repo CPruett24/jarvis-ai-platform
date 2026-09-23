@@ -1,4 +1,6 @@
 import json
+import threading
+from services.cancellation import check_cancelled
 from models.tool_request import ToolRequest
 from ollama import chat
 from services.conversation_service import (
@@ -26,6 +28,7 @@ from services.memory_service import (
 
 _hermes_connection = None
 _hermes_session_id = None
+_hermes_session_lock = threading.Lock()
 
 
 def get_hermes_connection():
@@ -502,12 +505,19 @@ def explain_impact(
 def stream_ai_response(
     prompt,
     on_chunk=None,
+    cancellation_event=None,
 ):
     """
     Stream a conversational AI response using the same
     memory, conversation-topic, code, history, and system
     prompt logic used by ask_ai().
+
+    cancellation_event stops local streaming cooperatively, not remote Hermes
+    execution. Acknowledged cancellation raises OperationCancelled and does
+    not commit an assistant response or a late completion status.
     """
+
+    check_cancelled(cancellation_event)
 
     add_message(
         "user",
@@ -519,7 +529,14 @@ def stream_ai_response(
 
     messages = _build_conversation_messages()
 
-    hermes, session_id = get_hermes_session()
+    global _hermes_session_id
+
+    check_cancelled(cancellation_event)
+    with _hermes_session_lock:
+        hermes, session_id = get_hermes_session()
+        # Reserve the session before remote work starts. A cancelled or failed
+        # stream never returns it, even if its remote request is still running.
+        _hermes_session_id = None
 
     hermes_prompt = format_hermes_messages(
         messages
@@ -527,21 +544,36 @@ def stream_ai_response(
 
     full_response = ""
 
-    for content in hermes.stream_prompt(
-        session_id,
-        hermes_prompt,
-        timeout=300,
-    ):
+    check_cancelled(cancellation_event)
+    options = {"timeout": 300}
+    if cancellation_event is not None:
+        options["cancellation_event"] = cancellation_event
+    response = hermes.stream_prompt(session_id, hermes_prompt, **options)
+    try:
+        while True:
+            check_cancelled(cancellation_event)
+            try:
+                content = next(response)
+            except StopIteration:
+                break
+            check_cancelled(cancellation_event)
+            if not content:
+                continue
+            full_response += content
+            if on_chunk:
+                on_chunk(content)
+            yield content
+        check_cancelled(cancellation_event)
+    finally:
+        close = getattr(response, "close", None)
+        if close is not None:
+            close()
 
-        if not content:
-            continue
-
-        full_response += content
-
-        if on_chunk:
-            on_chunk(content)
-
-        yield content
+    # Exhaustion confirms the prompt worker completed and its handler was
+    # removed. Only normally completed sessions are eligible for another turn.
+    with _hermes_session_lock:
+        if _hermes_session_id is None:
+            _hermes_session_id = session_id
 
     if full_response:
         add_message(

@@ -1,3 +1,4 @@
+from services.cancellation import check_cancelled
 import asyncio
 import json
 import os
@@ -511,16 +512,21 @@ class HermesACPConnection:
         session_id,
         text,
         timeout=300,
+        cancellation_event=None,
     ):
         """
         Stream text chunks from an existing Hermes ACP session.
         """
 
+        # Cancels local consumption only; the remote request may keep running.
+        check_cancelled(cancellation_event)
         chunks = queue.Queue()
         finished = object()
         error_holder = []
 
         def collect_update(params):
+            if cancellation_event is not None and cancellation_event.is_set():
+                return
             if params.get("sessionId") != session_id:
                 return
 
@@ -552,6 +558,7 @@ class HermesACPConnection:
 
         def request_worker():
             try:
+                check_cancelled(cancellation_event)
                 self._send_request(
                     "session/prompt",
                     {
@@ -587,7 +594,12 @@ class HermesACPConnection:
         try:
             while True:
 
-                item = chunks.get()
+                check_cancelled(cancellation_event)
+                try:
+                    item = chunks.get(timeout=0.05)
+                except queue.Empty:
+                    continue
+                check_cancelled(cancellation_event)
 
                 if item is finished:
                     break

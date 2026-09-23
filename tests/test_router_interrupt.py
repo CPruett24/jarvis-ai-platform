@@ -1,3 +1,4 @@
+import threading
 from commands import router
 
 
@@ -34,15 +35,15 @@ def test_streaming_conversation_handles_interrupt(
 
         def __init__(self, speech):
             self.speech = speech
-            self.interrupted = False
+            self.interrupted = threading.Event()
             self.text = None
 
         def handle_speech(self, text):
-            self.interrupted = True
+            self.interrupted.set()
             self.text = text
 
         def was_interrupted(self):
-            return self.interrupted
+            return self.interrupted.is_set()
 
         def get_interrupted_text(self):
             return self.text
@@ -83,7 +84,7 @@ def test_streaming_conversation_handles_interrupt(
     monkeypatch.setattr(
         router,
         "stream_ai_response",
-        lambda command: iter(
+        lambda command, cancellation_event=None: iter(
             [
                 "Hello. ",
                 "How are you?",
@@ -155,18 +156,18 @@ def test_streaming_conversation_returns_interruption(
 
             self.speech = speech
 
-            self.interrupted = False
+            self.interrupted = threading.Event()
             self.text = None
 
             FakeController.instance = self
 
         def handle_speech(self, text):
 
-            self.interrupted = True
+            self.interrupted.set()
             self.text = text
 
         def was_interrupted(self):
-            return self.interrupted
+            return self.interrupted.is_set()
 
         def get_interrupted_text(self):
             return self.text
@@ -183,7 +184,7 @@ def test_streaming_conversation_returns_interruption(
                 ("monitor_start",)
             )
 
-            FakeController.instance.interrupted = True
+            FakeController.instance.interrupted.set()
             FakeController.instance.text = (
                 "wait what about tomorrow"
             )
@@ -215,7 +216,7 @@ def test_streaming_conversation_returns_interruption(
     monkeypatch.setattr(
         router,
         "stream_ai_response",
-        lambda command: iter(
+        lambda command, cancellation_event=None: iter(
             [
                 "This should not continue."
             ]

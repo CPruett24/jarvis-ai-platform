@@ -1,3 +1,4 @@
+from services.cancellation import OperationCancelled, check_cancelled
 from services.ai_service import (
     ask_ai,
     detect_tool,
@@ -357,13 +358,14 @@ def _stream_with_interrupt(
     interrupt_controller,
 ):
     """
-    Run the Ollama stream in a background thread so the
+    Run the AI stream in a background thread so the
     router remains responsive to microphone interruptions.
 
     Returns normally when the stream completes.
     Stops yielding immediately when an interruption occurs.
     """
 
+    cancellation_event = interrupt_controller.interrupted
     chunks = queue.Queue()
     finished = object()
 
@@ -371,9 +373,15 @@ def _stream_with_interrupt(
 
         try:
 
-            for chunk in stream_ai_response(command):
-
+            for chunk in stream_ai_response(
+                command, cancellation_event=cancellation_event,
+            ):
+                check_cancelled(cancellation_event)
                 chunks.put(chunk)
+
+        except OperationCancelled as exc:
+            if not cancellation_event.is_set():
+                chunks.put(exc)
 
         except Exception as exc:
 
@@ -392,9 +400,8 @@ def _stream_with_interrupt(
 
     while True:
 
-        # Check the interruption BEFORE waiting for another
-        # Ollama chunk.
-        if interrupt_controller.was_interrupted():
+        # Keep observing this operation's signal even if the controller resets.
+        if cancellation_event.is_set():
             return
 
         try:
@@ -406,6 +413,9 @@ def _stream_with_interrupt(
         except queue.Empty:
 
             continue
+
+        if cancellation_event.is_set():
+            return
 
         if item is finished:
             return

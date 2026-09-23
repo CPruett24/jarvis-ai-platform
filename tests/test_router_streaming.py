@@ -20,6 +20,7 @@ def test_process_streaming_conversation(
 
     def fake_stream_ai_response(
         command,
+        cancellation_event=None,
     ):
 
         assert command == (
