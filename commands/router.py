@@ -15,6 +15,8 @@ from services.command_parser import (
 
 from services.conversation_manager import (
     has_pending_request,
+    get_pending_request,
+    clear_pending_request,
     complete_pending_request,
     is_follow_up,
     resolve_follow_up,
@@ -896,6 +898,8 @@ def process(
 
     if arithmetic_result is not None:
 
+        clear_pending_request()
+
         speak(
             arithmetic_result
         )
@@ -923,6 +927,8 @@ def process(
 
     if capability_management.matched:
 
+        clear_pending_request()
+
         print(
             "[Router] Capability management:",
             capability_management.action,
@@ -943,6 +949,8 @@ def process(
     )
 
     if capability.source == "static_command":
+
+        clear_pending_request()
 
         print(
             "[Router] Deterministic capability:",
@@ -977,6 +985,8 @@ def process(
     if normalized_command.startswith(
         "explain "
     ):
+
+        clear_pending_request()
 
         explanation_target = (
             normalized_command[
@@ -1058,6 +1068,11 @@ def process(
         command
     )
 
+    # Explicit tools, topic switches, and contextual follow-ups supersede
+    # clarification. The fallback conversation intent alone is not evidence.
+    if intent.type != "conversation":
+        clear_pending_request()
+
     print(
         f"[Router] Intent: "
         f"{intent.type} "
@@ -1075,6 +1090,8 @@ def process(
     )
 
     if capability_request.matched:
+
+        clear_pending_request()
 
         capability_name = (
             capability_request.capability_name
@@ -1137,6 +1154,7 @@ def process(
     )
 
     if workspace_request:
+        clear_pending_request()
         print(
             "[Router] Workspace capability:",
             workspace_request.tool,
@@ -1164,6 +1182,8 @@ def process(
     )
 
     if agent_request.matched:
+
+        clear_pending_request()
 
         print(
             "[Router] External agent:",
@@ -1286,6 +1306,25 @@ def process(
         speak(response)
 
         return response
+
+    # =========================================================
+    # PENDING REQUEST
+    # =========================================================
+
+    if has_pending_request():
+
+        pending_state = get_pending_request()
+        pending = complete_pending_request(response=normalized_command)
+
+        if pending:
+            execute_tool(pending)
+        else:
+            speak(
+                pending_state.get("prompt")
+                or "I couldn't resolve that clarification. Please try again."
+            )
+
+        return
 
     # =========================================================
     # CONVERSATION
@@ -1414,22 +1453,6 @@ def process(
         speak(response)
 
         return
-
-    # =========================================================
-    # PENDING REQUEST
-    # =========================================================
-
-    if has_pending_request():
-
-        pending = complete_pending_request(
-            filename=normalized_command
-        )
-
-        if pending:
-
-            execute_tool(pending)
-
-            return
 
     # =========================================================
     # TOPIC SWITCH

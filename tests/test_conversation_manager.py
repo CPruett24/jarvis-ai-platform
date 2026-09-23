@@ -1,3 +1,7 @@
+from pathlib import Path
+
+import pytest
+
 from models.tool_request import ToolRequest
 from services.conversation_manager import (
     has_pending_request,
@@ -177,7 +181,7 @@ def test_pending_request_can_be_completed_with_filename():
     )
 
     completed = complete_pending_request(
-        filename="router.py"
+        response="router.py"
     )
 
     assert completed is not None
@@ -222,3 +226,64 @@ def test_conversation_context_contains_pending_request():
     )
 
     clear_pending_request()
+
+
+@pytest.mark.parametrize("response", ["tool manager.py", "TOOL_MANAGER.PY", "manager"])
+def test_pending_filename_resolves_normalized_candidate(response):
+    request = ToolRequest("explain_file", {"depth": 2})
+    set_pending_request({
+        "request": request,
+        "missing": "filename",
+        "candidates": [Path("services/tool_manager.py"), Path("commands/router.py")],
+    })
+    try:
+        assert complete_pending_request(response) is request
+        assert request.arguments == {"depth": 2, "filename": "tool_manager.py"}
+        assert get_pending_request() is None
+        assert get_conversation_context()["pending_request"] is None
+        assert complete_pending_request(response) is None
+    finally:
+        clear_pending_request()
+
+
+@pytest.mark.parametrize("missing,response,candidates", [
+    ("date", "tomorrow", None),
+    ("filename", None, None),
+    ("filename", "   ", None),
+    ("filename", 123, None),
+    ("filename", "what time is it", None),
+    ("filename", "how are you", None),
+    ("filename", "tell me about this computer", None),
+    ("filename", "router?", None),
+    ("filename", "missing.py", [Path("router.py")]),
+    ("filename", ".py", [Path("router.py")]),
+    ("filename", "router", [Path("router.py"), Path("test_router.py")]),
+    ("filename", "router.py", [Path("a/router.py"), Path("b/router.py")]),
+])
+def test_unresolved_pending_request_is_unchanged(missing, response, candidates):
+    request = ToolRequest("explain_file", {"depth": 2})
+    pending = {
+        "request": request,
+        "missing": missing,
+        "candidates": candidates,
+        "prompt": "Please clarify.",
+    }
+    set_pending_request(pending)
+    try:
+        assert complete_pending_request(response) is None
+        assert get_pending_request() is pending
+        assert request.arguments == {"depth": 2}
+        assert get_conversation_context()["pending_request"] == pending
+    finally:
+        clear_pending_request()
+
+
+def test_pending_filename_can_be_completed_without_candidates_key():
+    request = ToolRequest("explain_file")
+    set_pending_request({"request": request, "missing": "filename"})
+    try:
+        assert complete_pending_request(" router.py ") is request
+        assert request.arguments == {"filename": "router.py"}
+        assert not has_pending_request()
+    finally:
+        clear_pending_request()

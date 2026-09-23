@@ -1,3 +1,5 @@
+import re
+
 from enum import Enum
 from models.tool_request import ToolRequest
 from dataclasses import dataclass
@@ -179,41 +181,60 @@ def resolve_follow_up(command):
     return None
 
 
-def complete_pending_request(filename=None):
+def _resolve_pending_filename(response, candidates):
+
+    if not isinstance(response, str) or not response.strip():
+        return None
+
+    filename = response.strip()
+
+    if not candidates:
+        # Accept short filename/path fragments, not arbitrary sentences or questions.
+        if not re.fullmatch(r"[\w./\\:-]+(?: +[\w./\\:-]+){0,2}", filename):
+            return None
+        if filename.lower().split()[0] in {
+            "what", "what's", "when", "where", "who", "which", "why", "how",
+            "can", "could", "would", "should", "is", "are", "do", "does", "did",
+        }:
+            return None
+        return filename
+
+    query = filename.lower().replace("_", "").replace(" ", "").replace(".py", "")
+
+    if not query:
+        return None
+
+    matches = [
+        path for path in candidates
+        if query in path.stem.lower().replace("_", "").replace(" ", "")
+    ]
+
+    if len(matches) == 1:
+        return matches[0].name
+
+    return None
+
+
+def complete_pending_request(response=None):
+    """Resolve the missing field; retain pending state on unsupported/invalid input."""
 
     pending = get_pending_request()
 
     if pending is None:
         return None
 
+    missing = pending["missing"]
+
+    if missing == "filename":
+        value = _resolve_pending_filename(response, pending.get("candidates"))
+    else:
+        return None
+
+    if value is None:
+        return None
+
     request = pending["request"]
-
-    if pending["missing"] == "filename":
-
-        if pending["candidates"]:
-
-            query = (
-                filename.lower()
-                .replace("_", "")
-                .replace(" ", "")
-                .replace(".py", "")
-            )
-
-            for path in pending["candidates"]:
-
-                stem = (
-                    path.stem.lower()
-                    .replace("_", "")
-                    .replace(" ", "")
-                )
-
-                if query in stem:
-
-                    filename = path.name
-
-                    break
-
-        request.arguments["filename"] = filename
+    request.arguments[missing] = value
 
     clear_pending_request()
 
