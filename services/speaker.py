@@ -1,21 +1,24 @@
 import threading
 
-import pyttsx3
-
 from services.status_service import (
     update_status,
     update_last_response,
 )
-import time
+from services.tts.factory import create_tts_provider
+
 
 class InterruptibleSpeaker:
     """
-    Thread-safe speaker that can immediately stop the
-    currently playing pyttsx3 response.
+    Thread-safe speaker that delegates speech generation
+    and playback to a replaceable TTS provider.
     """
 
-    def __init__(self):
-        self.engine = None
+    def __init__(self, provider=None):
+        self.provider = (
+            provider
+            if provider is not None
+            else create_tts_provider()
+        )
         self.lock = threading.Lock()
         self.speaking = False
 
@@ -28,56 +31,24 @@ class InterruptibleSpeaker:
         update_status("speaking")
         update_last_response(text)
 
-        tts_started = time.perf_counter()
-
-        engine = pyttsx3.init()
-
-        tts_initialized = time.perf_counter()
-
-        print(
-            "[Voice timing] "
-            f"tts_init="
-            f"{tts_initialized - tts_started:.2f}s"
-        )
-
         with self.lock:
-            self.engine = engine
             self.speaking = True
+
         try:
-            engine.say(text)
-            engine.runAndWait()
+            self.provider.speak(text)
 
         finally:
-
-            try:
-                engine.stop()
-            except Exception:
-                pass
-
             with self.lock:
-
-                if self.engine is engine:
-                    self.engine = None
-
                 self.speaking = False
 
             update_status("listening")
 
     def stop(self):
         """
-        Immediately stop the currently playing response.
+        Immediately stop the current TTS provider.
         """
 
-        with self.lock:
-            engine = self.engine
-
-        if engine is None:
-            return
-
-        try:
-            engine.stop()
-        except Exception:
-            pass
+        self.provider.stop()
 
         with self.lock:
             self.speaking = False
@@ -86,7 +57,9 @@ class InterruptibleSpeaker:
         with self.lock:
             return self.speaking
 
+
 _default_speaker = InterruptibleSpeaker()
+
 
 def speak(text):
     _default_speaker.speak(text)
