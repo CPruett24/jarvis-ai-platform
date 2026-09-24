@@ -130,3 +130,79 @@ def test_sentence_boundary_requires_whitespace():
     ) == [
         "Version 2.0 is ready."
     ]
+
+def test_emits_long_phrase_at_comma():
+
+    buffer = SentenceBuffer()
+
+    assert buffer.add(
+        "Python is commonly used for web development, "
+        "automation and data analysis."
+    ) == [
+        "Python is commonly used for web development,",
+        "automation and data analysis.",
+    ]
+
+    assert buffer.flush() == []
+
+
+def test_short_comma_does_not_emit():
+
+    buffer = SentenceBuffer()
+
+    assert buffer.add(
+        "Yes, that is correct."
+    ) == [
+        "Yes, that is correct."
+    ]
+
+
+def test_emits_long_phrase_at_semicolon():
+
+    buffer = SentenceBuffer()
+
+    assert buffer.add(
+        "The project has finished loading successfully; "
+        "everything is ready."
+    ) == [
+        "The project has finished loading successfully;",
+        "everything is ready.",
+    ]
+
+    assert buffer.flush() == []
+
+def test_emits_long_phrase_at_colon():
+
+    buffer = SentenceBuffer()
+
+    assert buffer.add(
+        "There is one important thing you should know: "
+        "the server is offline."
+    ) == [
+        "There is one important thing you should know:",
+        "the server is offline.",
+    ]
+
+    assert buffer.flush() == []
+
+
+def test_decimal_does_not_split_sentence():
+
+    buffer = SentenceBuffer()
+
+    assert buffer.add(
+        "The value is 3.14 and everything is normal."
+    ) == [
+        "The value is 3.14 and everything is normal."
+    ]
+
+
+def test_version_number_does_not_split():
+
+    buffer = SentenceBuffer()
+
+    assert buffer.add(
+        "Python 3.12 is installed and ready."
+    ) == [
+        "Python 3.12 is installed and ready."
+    ]
