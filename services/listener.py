@@ -52,6 +52,19 @@ def listen_for_speech():
             audio_captured - listen_started
         )
 
+        audio_duration = (
+            len(audio.frame_data)
+            / (
+                audio.sample_rate
+                * audio.sample_width
+            )
+        )
+
+        wait_time = max(
+            0.0,
+            capture_time - audio_duration,
+        )
+
         transcription_time = (
             transcription_finished
             - transcription_started
@@ -59,6 +72,8 @@ def listen_for_speech():
 
         print(
             "[Voice timing] "
+            f"wait={wait_time:.2f}s "
+            f"audio={audio_duration:.2f}s "
             f"capture={capture_time:.2f}s "
             f"transcription={transcription_time:.2f}s"
         )
@@ -68,13 +83,6 @@ def listen_for_speech():
         return command.lower()
 
     except sr.UnknownValueError:
-        return ""
-
-    except sr.RequestError:
-        print(
-            "Speech recognition service unavailable."
-        )
-
         return ""
     
 def listen_for_wake_word():

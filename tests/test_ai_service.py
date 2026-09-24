@@ -771,6 +771,11 @@ def test_conversation_paths_receive_identical_system_rules_and_context(
         "When answering normal conversational questions, answer directly and naturally.",
         "Do not use tools, code execution, terminal commands, browser tools, or other external actions for simple questions that you can answer directly.",
         "Only use a tool when the user's request genuinely requires an external action or information that cannot be answered from the conversation context.",
+        "The capability information above is internal grounding context.",
+        "Use it only to determine what JARVIS can actually do.",
+        "Do not list, summarize, mention, or repeat capabilities unless "
+        "the user specifically asks about JARVIS's capabilities.",
+        "Do not append capability information to an unrelated answer.",
         "Never invent capabilities, actions, access, information, or results.",
         "Never imply that you have information simply because the user asked about it.",
         "If a capability is unavailable, do not infer, guess, or imply the current state of that system.",

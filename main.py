@@ -4,6 +4,10 @@ from services.listener import (
     listen_for_wake_word,
 )
 
+from services.transcription_service import (
+    warm_up_transcription,
+)
+
 from services.status_service import (
     update_last_command,
     update_status,
@@ -46,6 +50,9 @@ speak("JARVIS online.")
 update_status("listening")
 
 calibrate_microphone()
+
+print("Warming up speech recognition...")
+warm_up_transcription()
 
 print('Waiting for "Jarvis"...')
 

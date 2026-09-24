@@ -8,6 +8,7 @@ import threading
 import uuid
 import queue
 
+HERMES_ACP_DEBUG = False
 
 class HermesACPError(Exception):
     """Raised when the Hermes ACP transport fails."""
@@ -191,14 +192,15 @@ class HermesACPConnection:
         self,
         message,
     ):
-        print(
-            "[Hermes ACP RAW]",
-            json.dumps(
-                message,
-                ensure_ascii=False,
-            ),
-            flush=True,
-        )
+        if HERMES_ACP_DEBUG:
+            print(
+                "[Hermes ACP RAW]",
+                json.dumps(
+                    message,
+                    ensure_ascii=False,
+                ),
+                flush=True,
+            )
 
         # ---------------------------------------------------------
         # JSON-RPC response to a JARVIS request

@@ -207,6 +207,13 @@ def _build_conversation_messages():
 
                 "\n\nCAPABILITY RULES:\n"
                 f"{capability_context}\n"
+                "\nThe capability information above is internal grounding context.\n"
+                "Use it only to determine what JARVIS can actually do.\n"
+                "Do not list, summarize, mention, or repeat capabilities unless "
+                "the user specifically asks about JARVIS's capabilities.\n"
+                "Do not append capability information to an unrelated answer.\n"
+                "\nNever invent capabilities, actions, access, "
+                "information, or results.\n"
                 "\nNever invent capabilities, actions, access, "
                 "information, or results.\n"
                 "Never imply that you have information simply "
