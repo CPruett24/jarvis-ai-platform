@@ -3,6 +3,7 @@ from services.microphone_service import create_microphone
 from services.transcription_service import transcribe_audio
 import threading
 import time
+from dataclasses import dataclass
 
 recognizer = sr.Recognizer()
 
@@ -25,7 +26,19 @@ def calibrate_microphone():
     print("Calibration complete.\n")
 
 
+@dataclass(frozen=True)
+class SpeechListenResult:
+    text: str = ""
+    timed_out: bool = False
+
+
 def listen_for_speech():
+    """Compatibility interface for wake-word and other string consumers."""
+    return listen_for_speech_result().text
+
+
+def listen_for_speech_result():
+    """Distinguish no captured utterance from captured but unrecognized audio."""
     with microphone as source:
 
         try:
@@ -40,7 +53,7 @@ def listen_for_speech():
             audio_captured = time.perf_counter()
 
         except sr.WaitTimeoutError:
-            return ""
+            return SpeechListenResult(timed_out=True)
 
     try:
         transcription_started = time.perf_counter()
@@ -81,10 +94,10 @@ def listen_for_speech():
 
         print(f"You: {command}")
 
-        return command.lower()
+        return SpeechListenResult(text=command.lower().strip())
 
     except sr.UnknownValueError:
-        return ""
+        return SpeechListenResult()
     
 def listen_for_wake_word():
     speech = listen_for_speech()

@@ -2,6 +2,7 @@ import os
 import tempfile
 import wave
 from pathlib import Path
+from services.configuration import load_environment
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -41,6 +42,13 @@ for directory in CUDA_DLL_DIRECTORIES:
 
 
 from faster_whisper import WhisperModel
+from faster_whisper.audio import decode_audio
+from faster_whisper.vad import get_speech_timestamps
+
+load_environment()
+SPEECH_DIAGNOSTICS = os.getenv("JARVIS_SPEECH_DIAGNOSTICS", "0").lower() in {
+    "1", "true", "yes", "on",
+}
 
 
 model = WhisperModel(
@@ -87,6 +95,10 @@ def warm_up_transcription():
         # Faster-Whisper inference is lazy.
         list(segments)
 
+        # Exercise Silero initialization/inference without filtering away the
+        # silence needed by the existing Whisper/CUDA warm-up above.
+        get_speech_timestamps(decode_audio(temp_path, sampling_rate=16000))
+
     finally:
 
         if os.path.exists(
@@ -110,12 +122,31 @@ def transcribe_audio(audio):
     try:
 
         segments, info = model.transcribe(
-            temp_path
+            temp_path,
+            vad_filter=True,
         )
+
+        # In Faster-Whisper 1.2.1 an empty VAD chunk list becomes a zero-length
+        # audio array and duration_after_vad=0. Do not decode its lazy iterator.
+        no_speech = info.duration_after_vad == 0
+        returned_segments = [] if no_speech else list(segments)
+        if SPEECH_DIAGNOSTICS:
+            print(
+                "[Speech diagnostics] "
+                f"audio={info.duration:.2f}s vad={info.duration_after_vad:.2f}s "
+                f"segments={len(returned_segments)} no_retained_speech={no_speech}"
+            )
+            for index, segment in enumerate(returned_segments):
+                print(
+                    f"[Speech diagnostics] segment={index} "
+                    f"no_speech_prob={segment.no_speech_prob:.3f} "
+                    f"avg_logprob={segment.avg_logprob:.3f} "
+                    f"temperature={segment.temperature:g}"
+                )
 
         text = " ".join(
             segment.text
-            for segment in segments
+            for segment in returned_segments
         )
 
         return text.strip()

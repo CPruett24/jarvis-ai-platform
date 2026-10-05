@@ -1,6 +1,6 @@
 from services.listener import (
     calibrate_microphone,
-    listen_for_speech,
+    listen_for_speech_result,
     listen_for_wake_word,
 )
 
@@ -78,13 +78,17 @@ while True:
 
         while True:
 
-            command = listen_for_speech()
+            listen_result = listen_for_speech_result()
 
-            update_last_command(command)
-
-            if command == "":
+            if listen_result.timed_out:
                 speak("Returning to standby.")
                 break
+
+            command = listen_result.text
+            if not command:
+                continue
+
+            update_last_command(command)
 
             command = command.lower().strip(".,!?")
 
