@@ -451,6 +451,8 @@ def process_streaming_conversation(command):
 
         interrupt_monitor.start()
 
+        speech.start_response()
+
         for chunk in _stream_with_interrupt(
             command,
             interrupt_controller,

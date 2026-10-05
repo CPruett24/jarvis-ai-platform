@@ -31,6 +31,55 @@ class FakeChunk:
         return self.data[key]
 
 
+def test_warm_up_uses_conversation_configuration_without_state_changes(monkeypatch):
+    calls = []
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("Warm-up must not access conversational context or state")
+
+    for name in (
+        "add_message", "update_status", "_build_conversation_messages",
+        "get_memory_information", "get_topic", "get_pending_request",
+        "get_source_aware_history",
+    ):
+        monkeypatch.setattr(ai_service, name, forbidden)
+
+    monkeypatch.setattr(ai_service, "OLLAMA_MODEL", "configured-model")
+    monkeypatch.setattr(ai_service, "OLLAMA_KEEP_ALIVE", "45m")
+
+    def fake_chat(**kwargs):
+        calls.append(kwargs)
+        if kwargs["stream"]:
+            return iter([{"message": {"content": "Hello"}}])
+        return {"message": {"content": "Hello"}}
+
+    monkeypatch.setattr(ai_service, "chat", fake_chat)
+    assert ai_service.warm_up_ai() is True
+    assert calls == [{
+        "model": "configured-model", "messages": [],
+        "stream": False, "keep_alive": "45m",
+    }]
+
+    monkeypatch.setattr(ai_service, "add_message", lambda *a, **k: None)
+    monkeypatch.setattr(ai_service, "update_status", lambda *a: None)
+    monkeypatch.setattr(ai_service, "_build_conversation_messages", lambda: [])
+    assert ai_service.ask_ai("hello") == "Hello"
+    assert list(ai_service.stream_ai_response("hello")) == ["Hello"]
+    assert [call["model"] for call in calls] == ["configured-model"] * 3
+    assert [call["keep_alive"] for call in calls] == ["45m"] * 3
+
+
+def test_warm_up_failure_is_non_fatal(monkeypatch, capsys):
+    def fail(**kwargs):
+        raise ConnectionError("Ollama offline")
+
+    monkeypatch.setattr(ai_service, "chat", fail)
+    assert ai_service.warm_up_ai() is False
+    warning = capsys.readouterr().out
+    assert "Warning: Ollama warm-up failed" in warning
+    assert "continuing startup" in warning
+
+
 def test_ask_ai_non_streaming(monkeypatch):
 
     captured = {}

@@ -101,7 +101,9 @@ def test_explain_impact_uses_verified_data(monkeypatch):
 
     captured = {}
 
-    def fake_chat(model, messages):
+    def fake_chat(model, messages, keep_alive):
+        assert model == ai_service.OLLAMA_MODEL
+        assert keep_alive == ai_service.OLLAMA_KEEP_ALIVE
 
         captured["model"] = model
         captured["messages"] = messages

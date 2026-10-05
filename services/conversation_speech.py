@@ -4,6 +4,7 @@ import threading
 from services.sentence_buffer import SentenceBuffer
 from services.speaker import speak, stop_speaking
 
+import time
 
 class ConversationSpeech:
     """
@@ -23,6 +24,9 @@ class ConversationSpeech:
         stop_function=None,
     ):
         self.buffer = SentenceBuffer()
+
+        self.response_started_at = None
+        self.first_phrase_reported = False
 
         self.speak_function = (
             speak_function
@@ -48,6 +52,14 @@ class ConversationSpeech:
         self.finished = threading.Event()
 
         self.worker.start()
+
+    def start_response(self):
+        """
+        Start timing a new streamed speech response.
+        """
+
+        self.response_started_at = time.perf_counter()
+        self.first_phrase_reported = False
 
     def _speech_worker(self):
 
@@ -79,6 +91,19 @@ class ConversationSpeech:
         sentences = self.buffer.add(
             text
         )
+
+        if (
+            sentences
+            and not self.first_phrase_reported
+            and self.response_started_at is not None
+        ):
+            self.first_phrase_reported = True
+
+            print(
+                "[Voice timing] "
+                "first_speakable_phrase="
+                f"{time.perf_counter() - self.response_started_at:.2f}s"
+            )
 
         for sentence in sentences:
 

@@ -41,6 +41,9 @@ def test_process_streaming_conversation(
 
             self.chunks = []
 
+        def start_response(self):
+            return
+
         def add_chunk(self, text):
 
             self.chunks.append(text)

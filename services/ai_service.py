@@ -1,4 +1,5 @@
 import json
+import os
 import threading
 from services.cancellation import check_cancelled
 from models.tool_request import ToolRequest
@@ -25,6 +26,29 @@ from services.grounding_service import (
 from services.memory_service import (
     get_memory_information
 )
+
+import time
+
+# Shared by warm-up and all Ollama requests in this service.
+OLLAMA_MODEL = os.getenv("JARVIS_OLLAMA_MODEL", "llama3.1:8b")
+# Keep interactive conversations warm across pauses without indefinite residency.
+OLLAMA_KEEP_ALIVE = os.getenv("JARVIS_OLLAMA_KEEP_ALIVE", "30m")
+
+
+def warm_up_ai():
+    """Load the conversational model without creating a conversation turn."""
+    try:
+        chat(
+            model=OLLAMA_MODEL,
+            messages=[],
+            stream=False,
+            keep_alive=OLLAMA_KEEP_ALIVE,
+        )
+    except Exception as exc:
+        print(f"Warning: Ollama warm-up failed ({type(exc).__name__}); continuing startup.")
+        return False
+    return True
+
 
 _hermes_connection = None
 _hermes_session_id = None
@@ -275,7 +299,8 @@ def ask_ai(
     messages = _build_conversation_messages()
 
     response = chat(
-        model="llama3.1:8b",
+        model=OLLAMA_MODEL,
+        keep_alive=OLLAMA_KEEP_ALIVE,
         messages=messages,
         stream=stream,
     )
@@ -344,7 +369,8 @@ def explain_code(file_info, depth=1,):
         )
 
     response = chat(
-        model="llama3.1:8b",
+        model=OLLAMA_MODEL,
+        keep_alive=OLLAMA_KEEP_ALIVE,
         messages=[
             {
                 "role": "system",
@@ -384,7 +410,8 @@ def detect_tool(command):
     tool_descriptions = get_tool_descriptions()
 
     response = chat(
-        model="llama3.1:8b",
+        model=OLLAMA_MODEL,
+        keep_alive=OLLAMA_KEEP_ALIVE,
         messages=[
             {
                 "role": "system",
@@ -462,7 +489,8 @@ def explain_impact(
     """
 
     response = chat(
-        model="llama3.1:8b",
+        model=OLLAMA_MODEL,
+        keep_alive=OLLAMA_KEEP_ALIVE,
         messages=[
             {
                 "role": "system",
@@ -538,8 +566,12 @@ def stream_ai_response(
 
     check_cancelled(cancellation_event)
 
+    request_started = time.perf_counter()
+    first_token_received = False
+
     response = chat(
-        model="llama3.1:8b",
+        model=OLLAMA_MODEL,
+        keep_alive=OLLAMA_KEEP_ALIVE,
         messages=messages,
         stream=True,
     )
@@ -554,6 +586,15 @@ def stream_ai_response(
 
             if not text:
                 continue
+
+            if not first_token_received:
+                first_token_received = True
+
+                print(
+                    "[Voice timing] "
+                    "ollama_first_token="
+                    f"{time.perf_counter() - request_started:.2f}s"
+                )
 
             full_response += text
 

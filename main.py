@@ -23,6 +23,7 @@ from services.conversation_service import (
 )
 
 from commands.router import process
+from services.ai_service import warm_up_ai
 from services.speaker import speak
 from models.session import Session
 from models.conversation import Conversation
@@ -53,6 +54,9 @@ calibrate_microphone()
 
 print("Warming up speech recognition...")
 warm_up_transcription()
+
+print("Warming up conversational AI...")
+warm_up_ai()
 
 print('Waiting for "Jarvis"...')
 

@@ -13,6 +13,9 @@ def test_streaming_conversation_handles_interrupt(
         def __init__(self):
             self.chunks = []
 
+        def start_response(self):
+            return
+
         def add_chunk(self, text):
             self.chunks.append(text)
 
@@ -127,6 +130,9 @@ def test_streaming_conversation_returns_interruption(
 
         def __init__(self):
             pass
+
+        def start_response(self):
+            return
 
         def add_chunk(self, text):
             events.append(
