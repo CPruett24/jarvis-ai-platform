@@ -1,6 +1,6 @@
 import os
 
-from dotenv import load_dotenv
+from services.configuration import load_environment
 
 from services.tts.elevenlabs_provider import (
     ElevenLabsTTSProvider,
@@ -16,7 +16,7 @@ def create_tts_provider():
     but cannot be initialized.
     """
 
-    load_dotenv()
+    load_environment()
 
     provider_name = os.getenv(
         "JARVIS_TTS_PROVIDER",

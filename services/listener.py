@@ -1,4 +1,5 @@
 import speech_recognition as sr
+from services.microphone_service import create_microphone
 from services.transcription_service import transcribe_audio
 import threading
 import time
@@ -9,7 +10,7 @@ recognizer.pause_threshold = 1.2
 recognizer.non_speaking_duration = 0.8
 recognizer.phrase_threshold = 0.3
 
-microphone = sr.Microphone()
+microphone = create_microphone()
 
 WAKE_WORDS = ["jarvis", "hey jarvis"]
 
@@ -107,7 +108,7 @@ class SpeechInterruptMonitor:
     def __init__(self, on_speech):
         self.on_speech = on_speech
 
-        self.microphone = sr.Microphone()
+        self.microphone = create_microphone()
 
         self.stop_listening = None
 
