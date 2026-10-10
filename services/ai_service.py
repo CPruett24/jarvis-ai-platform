@@ -10,6 +10,7 @@ from services.conversation_service import (
 )
 
 from services.memory_service import get_memory_context
+from services.memory_selection import select_memory_information
 from services.status_service import update_status
 from commands.tool_manager import get_tool_descriptions
 from services.conversation_manager import get_pending_request, get_topic
@@ -120,10 +121,13 @@ def format_hermes_messages(messages):
 
     return "\n\n".join(parts)
 
-def _build_conversation_messages():
+def _build_conversation_messages(current_question):
     """Build shared behavioral rules and live context for conversational AI calls."""
 
-    memory_information = get_memory_information()
+    history = get_source_aware_history()
+    memory_information = select_memory_information(
+        current_question, get_memory_information(), history,
+    )
 
     memory_context = format_information_context(
         memory_information
@@ -220,6 +224,22 @@ def _build_conversation_messages():
                 "Treat it as remembered information, not as something you directly observed:\n\n"
 
                 "\n\nCONVERSATION MODE:\n"
+                "PERSONAL EVIDENCE AND HISTORY RULES:\n"
+                "Prior assistant/JARVIS messages are conversational context, NOT evidence "
+                "about your personal history, experience, preferences, accomplishments, projects, or behavior.\n"
+                "Never convert an earlier assistant claim into a fact about you unless independently "
+                "supported by user-provided, remembered, observed, or agent-result information.\n"
+                "Do not infer your experience or accomplishments merely from discussing a topic.\n"
+                "Do not infer that you authored, built, used, or have experience with something "
+                "merely because related code or project context is available.\n"
+                "Do not strengthen remembered information beyond what the memory actually says.\n"
+                "Never silently turn inferred information into a personal fact about you.\n"
+                "For generic standalone knowledge questions, answer directly without gratuitous personalization.\n"
+                "Do not say 'you have already asked me', 'you've already asked me', "
+                "'as I mentioned earlier', or equivalent unsolicited repetition commentary "
+                "merely because similar content appears in history.\n"
+                "Use conversational history when needed to resolve a genuine follow-up or referent.\n"
+                "Discuss prior conversation or repetition when explicitly asked about it.\n"
                 "When answering normal conversational questions, answer "
                 "directly and naturally.\n"
                 "Do not use tools, code execution, terminal commands, "
@@ -277,7 +297,7 @@ def _build_conversation_messages():
     ]
 
     messages.extend(
-        get_source_aware_history()
+        history
     )
 
     return messages
@@ -296,7 +316,7 @@ def ask_ai(
 
     update_status("thinking")
 
-    messages = _build_conversation_messages()
+    messages = _build_conversation_messages(prompt)
 
     response = chat(
         model=OLLAMA_MODEL,
@@ -562,7 +582,7 @@ def stream_ai_response(
 
     update_status("thinking")
 
-    messages = _build_conversation_messages()
+    messages = _build_conversation_messages(prompt)
 
     check_cancelled(cancellation_event)
 

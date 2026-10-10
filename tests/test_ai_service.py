@@ -62,7 +62,7 @@ def test_warm_up_uses_conversation_configuration_without_state_changes(monkeypat
 
     monkeypatch.setattr(ai_service, "add_message", lambda *a, **k: None)
     monkeypatch.setattr(ai_service, "update_status", lambda *a: None)
-    monkeypatch.setattr(ai_service, "_build_conversation_messages", lambda: [])
+    monkeypatch.setattr(ai_service, "_build_conversation_messages", lambda question: [])
     assert ai_service.ask_ai("hello") == "Hello"
     assert list(ai_service.stream_ai_response("hello")) == ["Hello"]
     assert [call["model"] for call in calls] == ["configured-model"] * 3
@@ -171,7 +171,7 @@ def test_ask_ai_non_streaming(monkeypatch):
     assert (
         "[remembered] "
         "Your project deadline is Friday."
-        in captured["chat"]["messages"][0]["content"]
+        not in captured["chat"]["messages"][0]["content"]
     )
 
     assert saved_messages == [
@@ -307,7 +307,7 @@ def test_ask_ai_streaming(monkeypatch):
     assert (
         "[remembered] "
         "Your project deadline is Friday."
-        in captured["chat"]["messages"][0]["content"]
+        not in captured["chat"]["messages"][0]["content"]
     )
 
     assert streamed_chunks == [
@@ -843,7 +843,7 @@ def test_conversation_paths_receive_identical_system_rules_and_context(
         assert rule in system
 
     assert ("You are discussing the file router.py." in system) == (topic is not None)
-    assert ("[remembered] Your deadline is Friday." in system) == (context_kind != "empty")
+    assert ("[remembered] Your deadline is Friday." in system) == False
     assert ("Current file contents:" in system) == (context_kind not in {"empty", "missing_file"})
     if topic and context_kind != "missing_file":
         assert "def process(command): pass" in system

@@ -74,7 +74,7 @@ def test_cancelled_ai_stream_does_not_record_success_and_next_stream_is_fresh(
     monkeypatch.setattr(
         ai_service,
         "_build_conversation_messages",
-        lambda: [],
+        lambda question: [],
     )
     monkeypatch.setattr(
         ai_service,
