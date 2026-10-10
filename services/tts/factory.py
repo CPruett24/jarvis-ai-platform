@@ -6,14 +6,14 @@ from services.tts.elevenlabs_provider import (
     ElevenLabsTTSProvider,
 )
 from services.tts.local_provider import LocalTTSProvider
+from services.tts.fallback_provider import FallbackTTSProvider
 
 
 def create_tts_provider():
     """
     Create the configured JARVIS TTS provider.
 
-    Falls back to local TTS when ElevenLabs is selected
-    but cannot be initialized.
+    Falls back to local TTS on initialization or runtime failure.
     """
 
     load_environment()
@@ -25,7 +25,7 @@ def create_tts_provider():
 
     if provider_name == "elevenlabs":
         try:
-            return ElevenLabsTTSProvider(
+            primary = ElevenLabsTTSProvider(
                 api_key=os.getenv(
                     "ELEVENLABS_API_KEY"
                 ),
@@ -33,11 +33,12 @@ def create_tts_provider():
                     "ELEVENLABS_VOICE_ID"
                 ),
             )
+            return FallbackTTSProvider(primary, LocalTTSProvider())
 
         except Exception as exc:
             print(
                 "[TTS] ElevenLabs unavailable. "
-                f"Using local TTS: {exc}"
+                f"Using local TTS ({type(exc).__name__})."
             )
 
             return LocalTTSProvider()

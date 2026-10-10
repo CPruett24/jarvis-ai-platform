@@ -62,11 +62,12 @@ def test_factory_creates_elevenlabs_provider(
     provider = factory.create_tts_provider()
 
     assert isinstance(
-        provider,
+        provider.primary,
         FakeElevenLabsProvider,
     )
-    assert provider.api_key == "test-key"
-    assert provider.voice_id == "test-voice"
+    assert provider.primary.api_key == "test-key"
+    assert provider.primary.voice_id == "test-voice"
+    assert isinstance(provider.fallback, factory.LocalTTSProvider)
 
 
 def test_factory_falls_back_when_elevenlabs_fails(

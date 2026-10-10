@@ -79,6 +79,10 @@ class ConversationSpeech:
                     sentence
                 )
 
+            except Exception as error:
+                # A failed sentence must not kill the worker or strand the queue.
+                print(f"[TTS] Speech worker failed ({type(error).__name__}).")
+
             finally:
 
                 self.speech_queue.task_done()

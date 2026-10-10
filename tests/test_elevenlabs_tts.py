@@ -144,3 +144,26 @@ def test_requires_voice_id():
         raise AssertionError(
             "Expected missing voice ID to fail."
         )
+
+
+def test_lazy_quota_error_cleans_up_audio_and_uses_fallback():
+    from types import SimpleNamespace
+    from elevenlabs.core.api_error import ApiError
+    from services.tts.fallback_provider import FallbackTTSProvider
+
+    primary, client, audio = create_provider()
+    calls = []
+
+    def fail_during_iteration(**kwargs):
+        calls.append(kwargs["text"])
+        raise ApiError(status_code=401, body={"detail": {"status": "quota_exceeded"}})
+        yield b"unreachable"
+
+    client.text_to_speech.stream = fail_during_iteration
+    spoken = []
+    provider = FallbackTTSProvider(primary, SimpleNamespace(speak=spoken.append, stop=lambda: None))
+    provider.speak("First.")
+    provider.speak("Second.")
+    assert calls == ["First."]
+    assert spoken == ["First.", "Second."]
+    assert audio.stream.closed and audio.terminated

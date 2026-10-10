@@ -37,6 +37,9 @@ class InterruptibleSpeaker:
         try:
             self.provider.speak(text)
 
+        except Exception as error:
+            print(f"[TTS] Speech failed ({type(error).__name__}).")
+
         finally:
             with self.lock:
                 self.speaking = False
