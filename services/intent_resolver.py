@@ -6,6 +6,7 @@ from commands.static_commands import COMMANDS
 from services.code_intent import (
     is_code_question,
     is_contextual_code_question,
+    should_use_file_context,
 )
 
 from services.conversation_manager import (
@@ -116,7 +117,13 @@ def resolve_intent(command):
                 tool_request=switch,
                 metadata={"topic": topic},
             )
+        if should_use_file_context(command, topic):
+            return Intent(type="code_question", confidence=0.95, metadata={"topic": topic})
         return Intent(type="conversation", confidence=0.5)
+
+    parsed = parse_command(command)
+    if parsed and not is_follow_up(command):
+        return Intent(type="tool", confidence=1.0, tool_request=parsed)
 
     # ---------------------------------------------------------
     # Code conversation
@@ -130,9 +137,9 @@ def resolve_intent(command):
     # topic tells us this is a question about the current code.
     # ---------------------------------------------------------
 
-    if topic and (
-        is_code_question(command)
-        or is_contextual_code_question(command)
+    if should_use_file_context(command, topic) and (
+        is_code_question(command) or is_contextual_code_question(command)
+        or not is_follow_up(command)
     ):
 
         return Intent(
@@ -147,7 +154,7 @@ def resolve_intent(command):
     # Follow-up conversation
     # ---------------------------------------------------------
 
-    if topic and is_follow_up(command):
+    if should_use_file_context(command, topic) and is_follow_up(command):
 
         return Intent(
             type="follow_up",
@@ -160,8 +167,6 @@ def resolve_intent(command):
     # ---------------------------------------------------------
     # Explicitly parsed tool command
     # ---------------------------------------------------------
-
-    parsed = parse_command(command)
 
     if parsed:
 

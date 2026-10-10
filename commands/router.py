@@ -6,6 +6,12 @@ from services.ai_service import (
     explain_impact,
 )
 from services.speaker import speak
+from services.speaker import stop_speaking
+from services.conversation_lifecycle import (
+    is_conversation_end,
+    handle_conversation_boundary,
+    CONVERSATION_ENDED,
+)
 from commands.static_commands import COMMANDS
 from commands.dynamic_commands import process_dynamic_command
 from commands.tool_manager import execute_tool
@@ -23,6 +29,8 @@ from services.conversation_manager import (
     resolve_follow_up,
     is_explicit_file_target,
     get_topic,
+    mark_conversation_discussion,
+    mark_file_discussion,
 )
 
 from services.conversation_service import (
@@ -30,8 +38,8 @@ from services.conversation_service import (
 )
 
 from services.code_intent import (
-    is_code_question,
-    is_contextual_code_question,
+    should_use_file_context,
+    is_clear_new_question,
 )
 
 from services.project_service import get_file_content
@@ -888,7 +896,7 @@ def process(
 
         if interrupted_command:
 
-            process(
+            return process(
                 interrupted_command,
                 allow_interruption=False,
             )
@@ -896,6 +904,11 @@ def process(
         return
 
     command = command.strip(".,!?")
+
+    if is_conversation_end(command):
+        stop_speaking()
+        handle_conversation_boundary("explicit_end")
+        return CONVERSATION_ENDED
 
     command = ALIASES.get(
         command,
@@ -1011,7 +1024,7 @@ def process(
 
         file_target_exists = is_explicit_file_target(explanation_target)
 
-        if active_topic and not conceptual_capability:
+        if active_topic and not conceptual_capability and should_use_file_context(normalized_command, active_topic):
 
             if active_topic.get(
                 "type"
@@ -1030,6 +1043,7 @@ def process(
                 file_target_exists = True
 
         if not file_target_exists:
+            mark_conversation_discussion()
 
             if conceptual_capability and not allow_interruption:
                 speak(ask_ai(normalized_command))
@@ -1073,7 +1087,7 @@ def process(
 
                 if interrupted_command:
 
-                    process(
+                    return process(
                         interrupted_command,
                         allow_interruption=False,
                     )
@@ -1328,6 +1342,9 @@ def process(
     # PENDING REQUEST
     # =========================================================
 
+    if has_pending_request() and intent.type == "conversation" and is_clear_new_question(normalized_command):
+        clear_pending_request()
+
     if has_pending_request():
 
         pending_state = get_pending_request()
@@ -1363,6 +1380,7 @@ def process(
     # =========================================================
 
     if intent.type == "conversation":
+        mark_conversation_discussion()
 
         if not allow_interruption:
 
@@ -1420,7 +1438,7 @@ def process(
 
             if interrupted_command:
 
-                process(
+                return process(
                     interrupted_command,
                     allow_interruption=False,
                 )
@@ -1508,14 +1526,7 @@ def process(
 
     topic = get_topic()
 
-    if topic and topic["type"] == "file" and (
-        is_code_question(
-            normalized_command
-        )
-        or is_contextual_code_question(
-            normalized_command
-        )
-    ):
+    if intent.type == "code_question" and should_use_file_context(normalized_command, topic):
 
         file_info = get_file_content(
             topic["filename"]
@@ -1532,6 +1543,7 @@ def process(
                 file_info,
             )
 
+            mark_file_discussion()
             speak(response)
 
             return

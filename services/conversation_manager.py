@@ -54,6 +54,7 @@ class ConversationTopic(TypedDict):
 
 
 _current_topic: ConversationTopic | None = None
+_discussion_kind = None
 _pending_request = None
 
 _recent_turns = []
@@ -102,6 +103,24 @@ def set_topic(topic):
         raise ValueError("A file topic requires a non-empty filename.")
 
     _current_topic = topic
+    if topic["type"] == "file":
+        mark_file_discussion()
+    else:
+        mark_conversation_discussion()
+
+
+def mark_file_discussion():
+    global _discussion_kind
+    _discussion_kind = "file"
+
+
+def mark_conversation_discussion():
+    global _discussion_kind
+    _discussion_kind = "conversation"
+
+
+def is_file_discussion_active():
+    return _discussion_kind != "conversation"
 
 
 def get_topic() -> ConversationTopic | None:
@@ -112,9 +131,10 @@ def get_topic() -> ConversationTopic | None:
 
 def clear_topic():
 
-    global _current_topic
+    global _current_topic, _discussion_kind
 
     _current_topic = None
+    _discussion_kind = None
 
 
 def record_turn(role, content):
@@ -193,7 +213,9 @@ def resolve_follow_up(command):
     if topic is None or not is_follow_up(command):
         return None
 
-    if topic["type"] == "file":
+    from services.code_intent import should_use_file_context
+
+    if topic["type"] == "file" and should_use_file_context(command, topic):
 
         return ToolRequest(
             tool="explain_file",

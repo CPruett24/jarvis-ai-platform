@@ -134,6 +134,9 @@ def _build_conversation_messages(current_question):
     )
 
     topic = get_topic()
+    from services.code_intent import should_use_file_context
+    if not should_use_file_context(current_question, topic):
+        topic = None
 
     pending_request = get_pending_request()
 
@@ -240,6 +243,10 @@ def _build_conversation_messages(current_question):
                 "merely because similar content appears in history.\n"
                 "Use conversational history when needed to resolve a genuine follow-up or referent.\n"
                 "Discuss prior conversation or repetition when explicitly asked about it.\n"
+                "Archived conversations have not been loaded into this active discussion. "
+                "Use only the supplied active history; if a previous conversation is absent, "
+                "say it is not available here and ask the user to provide context. "
+                "Never claim to have retrieved or resumed archived dialogue.\n"
                 "When answering normal conversational questions, answer "
                 "directly and naturally.\n"
                 "Do not use tools, code execution, terminal commands, "

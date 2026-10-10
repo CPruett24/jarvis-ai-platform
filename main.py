@@ -18,8 +18,10 @@ from services.conversation_db import (
     end_session,
 )
 
-from services.conversation_service import (
-    restore_recent_history,
+from services.conversation_lifecycle import (
+    handle_conversation_boundary,
+    is_conversation_end,
+    CONVERSATION_ENDED,
 )
 
 from commands.router import process
@@ -29,20 +31,9 @@ from models.session import Session
 from models.conversation import Conversation
 from models.memory import initialize_database
 
-SESSION_END_PHRASES = [
-    "that's all",
-    "thank you",
-    "thanks",
-    "goodbye",
-    "never mind",
-    "nevermind",
-    "i'm done",
-    "im done",
-]
-
 initialize_database()
 
-restore_recent_history()
+handle_conversation_boundary("startup")
 
 start_session()
 
@@ -66,6 +57,7 @@ while True:
 
     if wake_result == "exit":
 
+        handle_conversation_boundary("exit")
         end_session()
 
         speak("Goodbye Chandler.")
@@ -81,6 +73,7 @@ while True:
             listen_result = listen_for_speech_result()
 
             if listen_result.timed_out:
+                handle_conversation_boundary("timeout")
                 speak("Returning to standby.")
                 break
 
@@ -96,19 +89,19 @@ while True:
 
             if command == "exit":
 
+                handle_conversation_boundary("exit")
                 end_session()
 
                 speak("Goodbye Chandler.")
 
                 exit()
                 
-            if any(
-                phrase in command
-                for phrase in SESSION_END_PHRASES
-            ):
+            if is_conversation_end(command):
+                handle_conversation_boundary("explicit_end")
                 speak("Anytime.")
                 break
 
-            process(command)
+            if process(command) is CONVERSATION_ENDED:
+                break
 
         print('\nWaiting for "Jarvis"...')
