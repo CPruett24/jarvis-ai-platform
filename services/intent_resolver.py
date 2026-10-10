@@ -11,7 +11,8 @@ from services.code_intent import (
 from services.conversation_manager import (
     get_topic,
     is_follow_up,
-    is_topic_switch,
+    is_topic_transition,
+    resolve_topic_switch,
 )
 
 from services.command_parser import parse_command
@@ -104,6 +105,20 @@ def resolve_intent(command):
         )
 
     # ---------------------------------------------------------
+    # Resolve transitions once, before broad code prefixes such as "how".
+    # Carry the exact decision through to execution rather than reinterpreting it.
+    if is_topic_transition(command):
+        switch = resolve_topic_switch(command)
+        if switch is not None:
+            return Intent(
+                type="topic_switch",
+                confidence=1.0,
+                tool_request=switch,
+                metadata={"topic": topic},
+            )
+        return Intent(type="conversation", confidence=0.5)
+
+    # ---------------------------------------------------------
     # Code conversation
     #
     # Code intent must be checked before generic follow-ups.
@@ -136,20 +151,6 @@ def resolve_intent(command):
 
         return Intent(
             type="follow_up",
-            confidence=1.0,
-            metadata={
-                "topic": topic,
-            },
-        )
-
-    # ---------------------------------------------------------
-    # Topic switch
-    # ---------------------------------------------------------
-
-    if is_topic_switch(command):
-
-        return Intent(
-            type="topic_switch",
             confidence=1.0,
             metadata={
                 "topic": topic,

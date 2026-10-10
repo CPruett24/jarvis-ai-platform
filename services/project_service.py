@@ -110,6 +110,13 @@ def _find_matching_files(filename):
 
     query = filename.lower().strip()
 
+    if "/" in query or "\\" in query:
+        root = _project_root().resolve()
+        target = (root / filename.replace("\\", "/")).resolve()
+        if not target.is_relative_to(root):
+            return []
+        return [target] if _is_project_file(target) else []
+
     if query.endswith(".py"):
         query = query[:-3]
 

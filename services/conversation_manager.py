@@ -25,6 +25,7 @@ SWITCH_TOPIC_PHRASES = {
     "now explain",
     "next explain",
     "next",
+    "switch to",
 }
 
 @dataclass
@@ -265,7 +266,7 @@ def complete_pending_request(response=None):
     return request
 
 
-def is_topic_switch(command):
+def is_topic_transition(command):
 
     command = command.lower().strip().rstrip(".!?")
 
@@ -275,7 +276,20 @@ def is_topic_switch(command):
     )
 
 
+def is_explicit_file_target(target):
+    """Recognize a single filename/path without requiring the file to exist."""
+    return bool(re.fullmatch(r"[\w.\-:/\\]+", target) and (
+        "/" in target or "\\" in target
+        or re.search(r"\.[a-z0-9]+$", target, re.IGNORECASE)
+    ))
+
+
+def is_topic_switch(command):
+    return resolve_topic_switch(command) is not None
+
+
 def resolve_topic_switch(command):
+    """Return the eligible file request, or None for a conversational transition."""
 
     text = command.lower().strip().rstrip(".!?")
 
@@ -287,6 +301,19 @@ def resolve_topic_switch(command):
 
             if not filename:
                 return None
+
+            if filename in {"the other file", "other file", "another file", "the next file"}:
+                # Let the existing file action request a filename. There is no
+                # tracked list/order from which to infer the referenced file.
+                return ToolRequest(tool="explain_file", arguments={})
+
+            if not is_explicit_file_target(filename):
+                topic = get_topic()
+                if not topic or topic.get("type") != "file":
+                    return None
+                from services.project_service import find_matching_files
+                if not find_matching_files(filename):
+                    return None
 
             return ToolRequest(
                 tool="explain_file",

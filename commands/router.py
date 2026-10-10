@@ -21,8 +21,7 @@ from services.conversation_manager import (
     complete_pending_request,
     is_follow_up,
     resolve_follow_up,
-    is_topic_switch,
-    resolve_topic_switch,
+    is_explicit_file_target,
     get_topic,
 )
 
@@ -990,9 +989,8 @@ def process(
     # is not a file request simply because it starts with
     # "explain".
     #
-    # Only treat an explanation as a file/code request when there
-    # is an active file topic or the requested target is actually
-    # a file in the project.
+    # Explicit filename/path targets remain file requests even when missing.
+    # Other explanations require a file topic or a resolvable project target.
     #
 
     conceptual_capability = is_capability_explanation(normalized_command)
@@ -1011,7 +1009,7 @@ def process(
 
         active_topic = get_topic()
 
-        file_target_exists = False
+        file_target_exists = is_explicit_file_target(explanation_target)
 
         if active_topic and not conceptual_capability:
 
@@ -1492,19 +1490,9 @@ def process(
     # TOPIC SWITCH
     # =========================================================
 
-    if is_topic_switch(
-        normalized_command
-    ):
-
-        switch = resolve_topic_switch(
-            normalized_command
-        )
-
-        if switch:
-
-            execute_tool(switch)
-
-            return
+    if intent.type == "topic_switch":
+        execute_tool(intent.tool_request)
+        return
 
     # =========================================================
     # COMMAND PARSER
