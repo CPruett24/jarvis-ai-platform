@@ -12,7 +12,7 @@ class FakeSpeech:
         self.interrupted = True
 
 
-def test_interrupt_controller_stops_speech():
+def test_interrupt_controller_signals_without_native_stop():
 
     speech = FakeSpeech()
 
@@ -24,7 +24,7 @@ def test_interrupt_controller_stops_speech():
         "wait jarvis"
     )
 
-    assert speech.interrupted is True
+    assert speech.interrupted is False
 
     assert controller.was_interrupted() is True
 
@@ -54,7 +54,7 @@ def test_interrupt_controller_ignores_empty_text():
     )
 
 
-def test_interrupt_controller_only_accepts_first_interrupt():
+def test_interrupt_controller_selects_followup_instead_of_stale_first():
 
     speech = FakeSpeech()
 
@@ -72,7 +72,7 @@ def test_interrupt_controller_only_accepts_first_interrupt():
 
     assert (
         controller.get_interrupted_text()
-        == "first interruption"
+        == "second interruption"
     )
 
 

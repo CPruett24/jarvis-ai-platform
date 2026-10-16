@@ -32,6 +32,9 @@ class Conversation(Base):
         nullable=True,
     )
 
+    # A saved row proves generation/recording, never human receipt.
+    playback_status = Column(String, nullable=False, default="unknown", server_default="unknown")
+
     timestamp = Column(
         DateTime,
         default=datetime.utcnow

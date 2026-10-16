@@ -33,7 +33,7 @@ def test_router_process_resolves_intent():
 
     result = get_function_calls(
         "router.py",
-        "process",
+        "_process_once",
     )
 
     assert result is not None
@@ -51,7 +51,7 @@ def test_router_process_resolves_tool_manager():
 
     result = get_function_calls(
         "router.py",
-        "process",
+        "_process_once",
     )
 
     assert result is not None
@@ -208,7 +208,7 @@ def test_builtin_calls_are_classified():
 
     result = get_function_calls(
         "router.py",
-        "process",
+        "_process_once",
     )
 
     assert result is not None
@@ -348,7 +348,7 @@ def test_builtin_classification_still_works():
 
     result = get_function_calls(
         "router.py",
-        "process",
+        "_process_once",
     )
 
     assert result is not None
@@ -428,7 +428,7 @@ def test_find_function_callers_finds_execute_tool():
         if caller["file"].endswith(
             "commands/router.py"
         )
-        and caller["function"] == "process"
+        and caller["function"] == "_process_once"
     ]
 
     assert len(router_callers) == 1
@@ -559,3 +559,14 @@ def test_find_class():
     )
 
     assert result is None
+
+def test_public_router_process_delegates_to_single_turn_handler():
+    result = get_function_calls("router.py", "process")
+    assert result is not None
+    targets = [item["target"].get("function") for item in result["resolved_calls"]]
+    assert "_process_once" in targets
+    assert "resolve_intent" not in targets
+    assert "execute_tool" not in targets
+    formatted = format_execution_trace(trace_execution("router.py", "process", max_depth=3))
+    assert "router.py::_process_once()" in formatted
+    assert "intent_resolver.py::resolve_intent()" in formatted

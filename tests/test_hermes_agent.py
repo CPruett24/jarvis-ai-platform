@@ -14,7 +14,12 @@ def test_hermes_is_named_hermes():
     assert agent.name == "hermes"
 
 
-def test_hermes_is_available_when_installed():
+def test_hermes_is_available_when_installed(monkeypatch, tmp_path):
+    from services.agents import hermes_acp
+
+    executable = tmp_path / "hermes.exe"
+    executable.touch()
+    monkeypatch.setattr(hermes_acp.shutil, "which", lambda name: str(executable) if name == "hermes" else None)
 
     agent = HermesAgent()
 

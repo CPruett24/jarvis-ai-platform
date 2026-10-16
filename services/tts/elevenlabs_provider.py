@@ -5,6 +5,7 @@ import pyaudio
 from elevenlabs.client import ElevenLabs
 
 from services.tts.base import TTSProvider
+from services.tts.outcome import PlaybackOutcome
 
 
 class ElevenLabsTTSProvider(TTSProvider):
@@ -52,8 +53,13 @@ class ElevenLabsTTSProvider(TTSProvider):
         self.audio_stream = None
 
     def speak(self, text):
+        return self.speak_cancellable(text, threading.Event())
+
+    def speak_cancellable(self, text, cancellation_event):
         if not text:
-            return
+            return PlaybackOutcome.SKIPPED
+        if cancellation_event.is_set():
+            return PlaybackOutcome.INTERRUPTED
 
         self.stop_event.clear()
 
@@ -83,7 +89,7 @@ class ElevenLabsTTSProvider(TTSProvider):
             first_audio = True
 
             for chunk in response:
-                if self.stop_event.is_set():
+                if self.stop_event.is_set() or cancellation_event.is_set():
                     break
 
                 if not chunk:
@@ -99,6 +105,9 @@ class ElevenLabsTTSProvider(TTSProvider):
                     )
 
                 stream.write(chunk)
+
+            return (PlaybackOutcome.INTERRUPTED if self.stop_event.is_set() or cancellation_event.is_set() else
+                    PlaybackOutcome.FAILED if first_audio else PlaybackOutcome.COMPLETED)
 
         finally:
             with self.lock:

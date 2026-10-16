@@ -25,7 +25,7 @@ def test_execute_tool_has_router_caller():
     callers = result["impact"]["callers"]
 
     assert any(
-        caller["function"] == "process"
+        caller["function"] == "_process_once"
         and caller["file"].endswith(
             "commands/router.py"
         )

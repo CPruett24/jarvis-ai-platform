@@ -1,8 +1,10 @@
 import os
 import tempfile
 import wave
+import threading
 from pathlib import Path
 from services.configuration import load_environment
+from services.voice_diagnostics import voice_trace
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -56,6 +58,7 @@ model = WhisperModel(
     device="cuda",
     compute_type="float16",
 )
+inference_lock = threading.Lock()
 
 def warm_up_transcription():
     """
@@ -106,7 +109,18 @@ def warm_up_transcription():
         ):
             os.remove(temp_path)
 
-def transcribe_audio(audio):
+def transcribe_audio(audio, *, interruption=False):
+    # A stuck monitor decoder must not create overlapping model operations.
+    if not inference_lock.acquire(timeout=0.25):
+        voice_trace("transcription_rejected", reason="decoder_busy")
+        return ""
+    try:
+        return _transcribe_audio(audio, interruption=interruption)
+    finally:
+        inference_lock.release()
+
+
+def _transcribe_audio(audio, *, interruption=False):
 
     with tempfile.NamedTemporaryFile(
         delete=False,
@@ -130,6 +144,18 @@ def transcribe_audio(audio):
         # audio array and duration_after_vad=0. Do not decode its lazy iterator.
         no_speech = info.duration_after_vad == 0
         returned_segments = [] if no_speech else list(segments)
+        if interruption:
+            # Reuse Whisper's default confidence limits, without a length or
+            # vocabulary filter. Require both speech and decoding confidence
+            # for barge-in; foreground recognition remains unchanged.
+            reason = "accepted"
+            if not returned_segments:
+                reason = "no_retained_speech"
+            elif any(getattr(segment, "no_speech_prob", 0) > 0.6 for segment in returned_segments):
+                reason = "high_no_speech_probability"
+            elif any(getattr(segment, "avg_logprob", 0) < -1.0 for segment in returned_segments):
+                reason = "low_decode_confidence"
+            voice_trace("interruption_transcription", result=reason)
         if SPEECH_DIAGNOSTICS:
             print(
                 "[Speech diagnostics] "
@@ -143,6 +169,9 @@ def transcribe_audio(audio):
                     f"avg_logprob={segment.avg_logprob:.3f} "
                     f"temperature={segment.temperature:g}"
                 )
+
+        if interruption and reason != "accepted":
+            return ""
 
         text = " ".join(
             segment.text

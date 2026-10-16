@@ -51,7 +51,7 @@ def test_index_finds_execute_tool_callers():
     callers = result["callers"]
 
     assert any(
-        caller["function"] == "process"
+        caller["function"] == "_process_once"
         and caller["file"].endswith(
             "commands/router.py"
         )

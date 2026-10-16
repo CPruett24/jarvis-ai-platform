@@ -110,7 +110,14 @@ def test_calendar_is_reported_unavailable():
         == "Calendar integration has not been configured yet."
     )
 
-def test_hermes_is_reported_available():
+def test_hermes_is_reported_available(monkeypatch):
+    from dataclasses import replace
+    from services.capability_registry import CAPABILITY_REGISTRY
+    from services import capability_state
+
+    monkeypatch.setitem(CAPABILITY_REGISTRY, "hermes_agent", replace(
+        CAPABILITY_REGISTRY["hermes_agent"], available=True, reason=None))
+    monkeypatch.setattr(capability_state, "_DISABLED_CAPABILITIES", set())
     capability = get_capability_details(
         "hermes_agent"
     )

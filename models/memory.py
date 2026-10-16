@@ -61,3 +61,5 @@ def initialize_database():
     Base.metadata.create_all(
         bind=engine
     )
+    from models.database import ensure_conversation_playback_column
+    ensure_conversation_playback_column()

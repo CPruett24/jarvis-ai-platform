@@ -1,12 +1,19 @@
+import pytest
+from services.agents.hermes_agent import HermesAgent
 from commands import router
 
 
-saved_messages = []
+@pytest.fixture(autouse=True)
+def installed_hermes(monkeypatch):
+    # Exercise router availability admission without depending on the host installation.
+    monkeypatch.setattr(HermesAgent, "available", property(lambda self: True))
+
 
 def test_router_delegates_agent_request(
     monkeypatch,
 ):
     executed = {}
+    saved_messages = []
 
     class FakeResult:
         success = True
@@ -86,6 +93,11 @@ def test_router_delegates_agent_request(
             },
             {
                 "role": "assistant",
+                "message": "[agent_result] Research completed.",
+                "source": "hermes",
+            },
+            {
+                "role": "assistant",
                 "message": "Research completed.",
                 "source": "hermes",
             },
@@ -115,10 +127,7 @@ def test_router_persists_agent_request_and_response(
         source=None,
     ):
         saved_messages.append(
-            (
-                role,
-                message,
-            )
+            {"role": role, "message": message, "source": source}
         )
 
     monkeypatch.setattr(
@@ -144,17 +153,6 @@ def test_router_persists_agent_request_and_response(
         allow_interruption=False,
     )
 
-    assert saved_messages == [
-        (
-            "user",
-            "research artificial intelligence trends",
-        ),
-        (
-            "assistant",
-            "Research completed.",
-        ),
-    ]
-
     assert (
         response
         == "Research completed."
@@ -169,6 +167,11 @@ def test_router_persists_agent_request_and_response(
                     "research artificial intelligence trends"
                 ),
                 "source": "user",
+            },
+            {
+                "role": "assistant",
+                "message": "[agent_result] Research completed.",
+                "source": "hermes",
             },
             {
                 "role": "assistant",

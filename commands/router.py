@@ -361,6 +361,12 @@ def try_basic_arithmetic(command):
 
     return str(result)
 
+_conversation_producer_slot = threading.BoundedSemaphore(1)
+MAX_VOICE_RESPONSE_SECONDS = 120
+PLAYBACK_INACTIVITY_SECONDS = 120
+INTERRUPTION_HANDOFF_SECONDS = 0.35
+
+
 def _stream_with_interrupt(
     command,
     interrupt_controller,
@@ -374,8 +380,21 @@ def _stream_with_interrupt(
     """
 
     cancellation_event = interrupt_controller.interrupted
-    chunks = queue.Queue()
+    if cancellation_event.is_set():
+        return
+    if not _conversation_producer_slot.acquire(blocking=False):
+        yield "The previous AI response is still cancelling. Please try again shortly."
+        return
+    chunks = queue.Queue(maxsize=32)
     finished = object()
+
+    def enqueue(item):
+        while not cancellation_event.is_set():
+            try:
+                chunks.put(item, timeout=0.05)
+                return
+            except queue.Full:
+                continue
 
     def producer():
 
@@ -385,32 +404,44 @@ def _stream_with_interrupt(
                 command, cancellation_event=cancellation_event,
             ):
                 check_cancelled(cancellation_event)
-                chunks.put(chunk)
+                enqueue(chunk)
 
         except OperationCancelled as exc:
             if not cancellation_event.is_set():
-                chunks.put(exc)
+                enqueue(exc)
 
         except Exception as exc:
 
-            chunks.put(exc)
+            enqueue(exc)
 
         finally:
 
-            chunks.put(finished)
+            _conversation_producer_slot.release()
+            enqueue(finished)
 
+    # Carry the operation's persistence receipt into its generation thread.
+    from contextvars import copy_context
+    generation_context = copy_context()
     thread = threading.Thread(
-        target=producer,
+        target=lambda: generation_context.run(producer),
         daemon=True,
     )
 
-    thread.start()
+    try:
+        thread.start()
+    except BaseException:
+        _conversation_producer_slot.release()
+        raise
+    deadline = time.monotonic() + MAX_VOICE_RESPONSE_SECONDS
 
     while True:
 
         # Keep observing this operation's signal even if the controller resets.
         if cancellation_event.is_set():
             return
+        if time.monotonic() >= deadline:
+            cancellation_event.set()
+            raise TimeoutError("Conversation stream timed out")
 
         try:
 
@@ -436,109 +467,101 @@ def _stream_with_interrupt(
 INTERRUPTION_PREFIX = "__JARVIS_INTERRUPTION__:"
 
 
-def process_streaming_conversation(command):
-
-    print("Calling streaming conversation AI...")
-
-    speech = ConversationSpeech()
-
-    interrupt_controller = (
-        ConversationInterruptController(
-            speech
-        )
-    )
-
-    interrupt_monitor = SpeechInterruptMonitor(
-        interrupt_controller.handle_speech
-    )
-
-    full_response = ""
-
+def _ask_and_speak(command):
+    from services.conversation_service import ResponseDelivery, capture_response_delivery
+    from services.tts.outcome import PlaybackOutcome
+    receipt = ResponseDelivery()
+    result = PlaybackOutcome.FAILED
     try:
-
-        interrupt_monitor.start()
-
-        speech.start_response()
-
-        for chunk in _stream_with_interrupt(
-            command,
-            interrupt_controller,
-        ):
-
-            if interrupt_controller.was_interrupted():
-
-                print(
-                    "[Router] Conversation interrupted."
-                )
-
-                break
-
-            if not chunk:
-                continue
-
-            full_response += chunk
-
-            speech.add_chunk(chunk)
-
-        # Critical race check after streaming.
-        if interrupt_controller.was_interrupted():
-
-            interrupted_text = (
-                interrupt_controller
-                .get_interrupted_text()
-            )
-
-            print(
-                "[Router] Interrupted command:",
-                interrupted_text,
-            )
-
-            speech.interrupt()
-
-            return (
-                INTERRUPTION_PREFIX
-                + interrupted_text
-            )
-
-        speech.finish()
-
-        while True:
-
-            if interrupt_controller.was_interrupted():
-
-                interrupted_text = (
-                    interrupt_controller
-                    .get_interrupted_text()
-                )
-
-                print(
-                    "[Router] Interrupted while speaking:",
-                    interrupted_text,
-                )
-
-                speech.interrupt()
-
-                return (
-                    INTERRUPTION_PREFIX
-                    + interrupted_text
-                )
-
-            if speech.is_finished():
-
-                break
-
-            time.sleep(0.05)
-
-        print(
-            "AI returned:",
-            full_response,
-        )
-
-        return full_response
-
+        with capture_response_delivery(receipt):
+            response = ask_ai(command)
+        result = speak(response)
+        return response
     finally:
+        receipt.finish(result)
 
-        interrupt_monitor.stop()
+
+def process_streaming_conversation(command):
+    from services.conversation_service import ResponseDelivery, capture_response_delivery
+    from services.tts.outcome import PlaybackOutcome
+    print("Calling streaming conversation AI...")
+    speech = ConversationSpeech()
+    controller = ConversationInterruptController(speech)
+    monitor = None
+    full_response = ""
+    cancelled = False
+    receipt = ResponseDelivery()
+    outcome = PlaybackOutcome.UNKNOWN
+    response_error = False
+    interrupted_text = None
+    try:
+        monitor = SpeechInterruptMonitor(controller.handle_speech)
+        monitor.start()
+        speech.start_response()
+        with capture_response_delivery(receipt):
+            for chunk in _stream_with_interrupt(command, controller):
+                if controller.was_interrupted():
+                    break
+                if chunk:
+                    full_response += chunk
+                    speech.add_chunk(chunk)
+        if not controller.was_interrupted():
+            speech.finish()
+            waiting_since = time.monotonic()
+            while not controller.was_interrupted() and not speech.is_finished():
+                progress = getattr(speech, "progress_timestamp", lambda: None)()
+                if time.monotonic() - (progress if progress is not None else waiting_since) >= PLAYBACK_INACTIVITY_SECONDS:
+                    outcome = PlaybackOutcome.TIMED_OUT
+                    getattr(speech, "mark_timeout", speech.interrupt)()
+                    print("[TTS] Playback timed out; returning to listening.")
+                    break
+                time.sleep(0.05)
+        cancelled = controller.was_interrupted()
+        if cancelled:
+            outcome = PlaybackOutcome.INTERRUPTED
+            speech.interrupt()  # One request; callback only records cancellation.
+            begin_handoff = getattr(controller, "begin_handoff", None)
+            if begin_handoff:
+                begin_handoff()
+            # Briefly retain following utterances while playback winds down.
+            time.sleep(INTERRUPTION_HANDOFF_SECONDS)
+        elif outcome != PlaybackOutcome.TIMED_OUT:
+            outcome = getattr(speech, "playback_outcome", lambda: PlaybackOutcome.UNKNOWN)()
+    except TimeoutError:
+        outcome = PlaybackOutcome.TIMED_OUT
+        speech.interrupt()
+        print("[Voice] Response timed out; returning to listening.")
+    except BaseException:
+        outcome = PlaybackOutcome.FAILED
+        response_error = True
+        raise
+    finally:
+        # Dispose the speech worker even after successful playback or exceptions.
+        try:
+            close = getattr(speech, "stop", None)
+            if close:
+                close()
+        finally:
+            try:
+                if monitor:
+                    monitor.stop()
+            finally:
+                try:
+                    # Seal the callback window after bounded cleanup, before
+                    # persisting the result. The synthetic producer-stop event
+                    # below is not evidence of a user interruption.
+                    handoff = getattr(controller, "handoff", controller.get_interrupted_text)
+                    interrupted_text = handoff()
+                    if interrupted_text and not response_error and outcome != PlaybackOutcome.TIMED_OUT:
+                        outcome = PlaybackOutcome.INTERRUPTED
+                    receipt.finish(outcome)
+                finally:
+                    # Also release a producer waiting on a full queue after errors.
+                    controller.interrupted.set()
+    if interrupted_text:
+        return INTERRUPTION_PREFIX + interrupted_text
+    print("AI returned:", full_response)
+    return full_response
 
 def normalize_interruption(command):
     """
@@ -844,65 +867,25 @@ def execute_migrated_tool_request(
 
     return True
 
-def process(
-    command,
-    allow_interruption=True,
-):
-    """
-    Main JARVIS command router.
+def process(command, allow_interruption=True):
+    """Route handoffs iteratively, preserving barge-in and end control results."""
+    while command:
+        if command.lower().startswith(INTERRUPTION_PREFIX.lower()):
+            command = normalize_interruption(command[len(INTERRUPTION_PREFIX):].strip())
+            allow_interruption = True
+            if not command:
+                return
+        result = _process_once(command, allow_interruption=allow_interruption)
+        if isinstance(result, str) and result.startswith(INTERRUPTION_PREFIX):
+            command = result
+            continue
+        return result
 
-    allow_interruption=False is used when processing a command
-    that was captured by the interruption monitor. This prevents
-    an interrupted command from starting another interruption
-    monitor and creating a recursive conversation loop.
-    """
 
+def _process_once(command, allow_interruption=True):
     if not command:
         return
-
     command = command.lower().strip()
-
-    # =========================================================
-    # INTERRUPTION
-    # =========================================================
-    #
-    # Interruption commands must be handled BEFORE intent
-    # resolution. Otherwise the interruption wrapper gets sent
-    # through the normal AI/conversation routing path.
-    #
-    if command.startswith(
-        INTERRUPTION_PREFIX.lower()
-    ):
-
-        interrupted_command = command[
-            len(INTERRUPTION_PREFIX):
-        ].strip()
-
-        print(
-            "[Router] Processing interruption:",
-            interrupted_command,
-        )
-
-        interrupted_command = (
-            normalize_interruption(
-                interrupted_command
-            )
-        )
-
-        print(
-            "[Router] Normalized interruption:",
-            interrupted_command,
-        )
-
-        if interrupted_command:
-
-            return process(
-                interrupted_command,
-                allow_interruption=False,
-            )
-
-        return
-
     command = command.strip(".,!?")
 
     if is_conversation_end(command):
@@ -916,6 +899,26 @@ def process(
     )
 
     normalized_command = command.strip(".,!")
+
+    # Explicit archive recall precedes broad code, agent, clarification, and
+    # memory routes. The AI service selects its isolated prompt while the
+    # existing streaming/speech machinery retains ownership of interruption.
+    from services.historical_recall import classify_historical_recall
+    if classify_historical_recall(normalized_command) is not None:
+        clear_pending_request()
+        mark_conversation_discussion()
+        if not allow_interruption:
+            return _ask_and_speak(normalized_command)
+        result = process_streaming_conversation(normalized_command)
+        return result
+
+    from services.code_intent import is_conversation_summary_phrase
+    if is_conversation_summary_phrase(normalized_command):
+        clear_pending_request()
+        mark_conversation_discussion()
+        response = "Did you mean summarize our last conversation?"
+        speak(response)
+        return response
 
     arithmetic_result = try_basic_arithmetic(
         command
@@ -1045,8 +1048,8 @@ def process(
         if not file_target_exists:
             mark_conversation_discussion()
 
-            if conceptual_capability and not allow_interruption:
-                speak(ask_ai(normalized_command))
+            if not allow_interruption:
+                _ask_and_speak(normalized_command)
                 return
 
             print(
@@ -1065,32 +1068,7 @@ def process(
                 INTERRUPTION_PREFIX
             ):
 
-                interrupted_command = result[
-                    len(INTERRUPTION_PREFIX):
-                ].strip()
-
-                print(
-                    "[Router] Processing interruption:",
-                    interrupted_command,
-                )
-
-                interrupted_command = (
-                    normalize_interruption(
-                        interrupted_command
-                    )
-                )
-
-                print(
-                    "[Router] Normalized interruption:",
-                    interrupted_command,
-                )
-
-                if interrupted_command:
-
-                    return process(
-                        interrupted_command,
-                        allow_interruption=False,
-                    )
+                return result
 
             return
 
@@ -1384,16 +1362,12 @@ def process(
 
         if not allow_interruption:
 
-            response = ask_ai(
-                normalized_command
-            )
+            response = _ask_and_speak(normalized_command)
 
             print(
                 "AI returned:",
                 response,
             )
-
-            speak(response)
 
             return
 
@@ -1416,32 +1390,7 @@ def process(
             INTERRUPTION_PREFIX
         ):
 
-            interrupted_command = result[
-                len(INTERRUPTION_PREFIX):
-            ].strip()
-
-            print(
-                "[Router] Processing interruption:",
-                interrupted_command,
-            )
-
-            interrupted_command = (
-                normalize_interruption(
-                    interrupted_command
-                )
-            )
-
-            print(
-                "[Router] Normalized interruption:",
-                interrupted_command,
-            )
-
-            if interrupted_command:
-
-                return process(
-                    interrupted_command,
-                    allow_interruption=False,
-                )
+            return result
 
             return
 
@@ -1675,9 +1624,7 @@ def process(
         "Calling ask_ai..."
     )
 
-    response = ask_ai(
-        normalized_command
-    )
+    response = _ask_and_speak(normalized_command)
 
     print(
         "AI returned:",
@@ -1687,5 +1634,3 @@ def process(
     print(
         "Speaking..."
     )
-
-    speak(response)

@@ -1,4 +1,6 @@
 import time
+import threading
+import pytest
 
 from services.conversation_speech import (
     ConversationSpeech,
@@ -267,29 +269,64 @@ def test_interrupt_stops_current_speech(
     assert stopped == [True]
 
 
+@pytest.mark.parametrize("attempt", range(10))
 def test_interrupt_discards_queued_sentences(
-    monkeypatch,
+    monkeypatch, attempt,
 ):
-
     spoken = []
+    worker_entered, release_worker = threading.Event(), threading.Event()
+    original_worker = ConversationSpeech._speech_worker
 
-    def fake_speak(text):
+    def gated_worker(self):
+        worker_entered.set()
+        assert release_worker.wait(2), "Test did not release its worker"
+        original_worker(self)
 
+    monkeypatch.setattr(ConversationSpeech, "_speech_worker", gated_worker)
+    stopped = threading.Event()
+    speech = ConversationSpeech(speak_function=spoken.append, stop_function=stopped.set)
+    try:
+        assert worker_entered.wait(1)
+        speech.add_chunk("First sentence. Second sentence.")
+        speech.interrupt()
+        assert stopped.wait(1)
+        assert speech.speech_queue.unfinished_tasks == 0
+        release_worker.set()
+        assert speech.wait_until_finished(1)
+        assert spoken == []  # Both utterances were definitely queued at cancellation.
+    finally:
+        release_worker.set()
+        assert speech.stop()
+
+
+@pytest.mark.parametrize("attempt", range(10))
+def test_interrupt_discards_waiting_sentences_after_playback_started(attempt):
+    spoken = []
+    entered, release, stopped = threading.Event(), threading.Event(), threading.Event()
+
+    def blocking_speak(text):
         spoken.append(text)
+        entered.set()
+        assert release.wait(2)
 
-    speech = ConversationSpeech(
-        speak_function=fake_speak,
-    )
+    def stop():
+        stopped.set()
+        release.set()
 
-    speech.add_chunk(
-        "First sentence. Second sentence."
-    )
-
-    speech.interrupt()
-
-    speech.wait_until_finished()
-
-    assert spoken == []
+    speech = ConversationSpeech(speak_function=blocking_speak, stop_function=stop)
+    try:
+        speech.add_chunk("Active sentence.")
+        assert entered.wait(1)
+        speech.add_chunk("Waiting sentence. Another waiting sentence.")
+        speech.interrupt()
+        assert stopped.wait(1)
+        assert speech.wait_until_finished(1)
+        assert spoken == ["Active sentence."]
+        assert speech.last_success_at is None
+        assert speech.playback_outcome().value == "interrupted"
+    finally:
+        release.set()
+        assert speech.stop()
 
 
 def test_reset_allows_speech_after_interrupt(
@@ -325,7 +362,7 @@ def test_interrupt_monitor_calls_callback(
 
     captured = {}
 
-    def fake_transcribe(audio):
+    def fake_transcribe(audio, **kwargs):
         return "stop jarvis"
 
     def fake_callback(text):
@@ -364,7 +401,7 @@ def test_interrupt_monitor_ignores_empty_transcription(
 
     called = []
 
-    def fake_transcribe(audio):
+    def fake_transcribe(audio, **kwargs):
         return ""
 
     def fake_callback(text):

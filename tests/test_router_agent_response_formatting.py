@@ -1,4 +1,12 @@
+import pytest
+from services.agents.hermes_agent import HermesAgent
 import commands.router as router
+
+
+@pytest.fixture(autouse=True)
+def installed_hermes(monkeypatch):
+    # Exercise router availability admission without depending on the host installation.
+    monkeypatch.setattr(HermesAgent, "available", property(lambda self: True))
 
 
 def test_router_cleans_agent_response_before_speaking(

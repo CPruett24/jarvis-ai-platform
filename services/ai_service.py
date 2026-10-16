@@ -315,6 +315,16 @@ def ask_ai(
     stream=False,
     on_chunk=None,
 ):
+    from services.historical_recall import classify_historical_recall, stream_historical_recall
+    recall = classify_historical_recall(prompt)
+    if recall is not None:
+        chunks = []
+        for text in stream_historical_recall(prompt, recall):
+            chunks.append(text)
+            if on_chunk:
+                on_chunk(text)
+        return "".join(chunks)
+
     add_message(
         "user",
         prompt,
@@ -580,6 +590,17 @@ def stream_ai_response(
     """
 
     check_cancelled(cancellation_event)
+
+    from services.historical_recall import classify_historical_recall, stream_historical_recall
+    recall = classify_historical_recall(prompt)
+    if recall is not None:
+        for text in stream_historical_recall(
+            prompt, recall, cancellation_event=cancellation_event,
+        ):
+            if on_chunk:
+                on_chunk(text)
+            yield text
+        return
 
     add_message(
         "user",

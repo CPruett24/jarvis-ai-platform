@@ -1,6 +1,28 @@
 import re
 
 
+def is_conversation_summary_phrase(command):
+    """Conversation phrases (including truncated speech) aren't filenames.
+
+    Full matching preserves explicit targets such as 'our last.py'.
+    """
+    text = " ".join(command.lower().split()).rstrip(".!?")
+    if re.fullmatch(
+        r"(?:can you |could you |please )?(?:summarize|summarise|summarizing) "
+        r"our(?: (?:last|previous))?(?: (?:conversation|discussion))?",
+        text,
+    ):
+        return True
+    # Only explicit cutoff markers on prefixes of conversation words qualify.
+    # Extensions, paths and arbitrary hyphenated names remain file targets.
+    match = re.fullmatch(
+        r"(?:can you |could you |please )?(?:summarize|summarise|summarizing) "
+        r"our(?: (?:last|previous))? ([a-z]+)[-–—]", text,
+    )
+    return bool(match and any(word.startswith(match[1]) for word in (
+        "last", "previous", "conversation", "discussion")))
+
+
 CODE_PATTERNS = [
     "why",
     "how",

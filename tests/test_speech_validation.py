@@ -97,6 +97,37 @@ def test_empty_segment_iterator_returns_empty(transcription):
     assert namespace["transcribe_audio"](SimpleNamespace(get_wav_data=lambda: b"wav")) == ""
 
 
+@pytest.mark.parametrize("text", ["You", "stop", "wait", "That's all", "no"])
+def test_confident_short_interruptions_are_preserved(transcription, text):
+    namespace, model = transcription
+    model.transcribe = lambda *a, **k: (
+        iter([SimpleNamespace(text=text, no_speech_prob=0.05, avg_logprob=-0.2)]),
+        SimpleNamespace(duration_after_vad=0.2),
+    )
+    assert namespace["transcribe_audio"](
+        SimpleNamespace(get_wav_data=lambda: b"wav"), interruption=True,
+    ) == text
+
+
+@pytest.mark.parametrize("no_speech,logprob,reason", [
+    (0.9, -0.2, "high_no_speech_probability"),
+    (0.1, -1.5, "low_decode_confidence"),
+])
+def test_uncertain_interruption_rejected_but_foreground_unchanged(
+    transcription, monkeypatch, capsys, no_speech, logprob, reason,
+):
+    namespace, model = transcription
+    monkeypatch.setenv("JARVIS_SPEECH_DIAGNOSTICS", "1")
+    model.transcribe = lambda *a, **k: (
+        iter([SimpleNamespace(text="You", no_speech_prob=no_speech, avg_logprob=logprob)]),
+        SimpleNamespace(duration_after_vad=0.2),
+    )
+    audio = SimpleNamespace(get_wav_data=lambda: b"wav")
+    assert namespace["transcribe_audio"](audio, interruption=True) == ""
+    assert reason in capsys.readouterr().out
+    assert namespace["transcribe_audio"](audio) == "You"
+
+
 def test_warmup_preserves_whisper_and_exercises_vad(transcription, monkeypatch):
     namespace, model = transcription
     calls = []
@@ -153,7 +184,7 @@ def test_interrupt_forwarding(listener, monkeypatch, text):
     callback = []
     monitor = listener["SpeechInterruptMonitor"](callback.append)
     monitor.running = True
-    monkeypatch.setitem(monitor._callback.__globals__, "transcribe_audio", lambda a: text)
+    monkeypatch.setitem(monitor._callback.__globals__, "transcribe_audio", lambda a, **k: text)
     monitor._callback(None, object())
     assert callback == ([text] if text.strip() else [])
 
@@ -191,6 +222,9 @@ def test_active_loop_ignores_rejection_then_processes_speech_and_times_out(liste
         speak=spoken.append, process=processed.append,
         update_last_command=recorded.append, end_session=lambda: None,
         SESSION_END_PHRASES=["thanks"],
+        handle_conversation_boundary=lambda reason: None,
+        is_conversation_end=lambda text: text == "thanks",
+        CONVERSATION_ENDED=object(),
     )
     exec(compile(ast.Module(body=[loop], type_ignores=[]), "main.py", "exec"), context)
     assert processed == recorded == ["open dashboard"]

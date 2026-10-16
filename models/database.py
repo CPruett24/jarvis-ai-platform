@@ -83,3 +83,13 @@ def initialize_database():
     )
 
     ensure_conversation_source_column()
+    ensure_conversation_playback_column()
+
+
+def ensure_conversation_playback_column():
+    """Additive startup migration; legacy delivery remains explicitly unknown."""
+    columns = {column["name"] for column in inspect(engine).get_columns("conversations")}
+    if "playback_status" not in columns:
+        with engine.begin() as connection:
+            connection.execute(text("ALTER TABLE conversations ADD COLUMN "
+                                    "playback_status VARCHAR NOT NULL DEFAULT 'unknown'"))
