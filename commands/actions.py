@@ -229,99 +229,22 @@ def python_version():
     )
 
 def project_tree():
+    from services.source_answer import source_capability
+    return source_capability(operation="list")
 
-    root = Path.cwd()
-
-    directories = []
-    files = []
-
-    for item in sorted(root.iterdir()):
-
-        if item.name.startswith("."):
-            continue
-
-        if item.is_dir():
-            directories.append(item.name)
-
-        else:
-            files.append(item.name)
-
-    print("\n===== PROJECT STRUCTURE =====")
-
-    print(f"{root.name}/")
-
-    for directory in directories:
-        print(f"  📁 {directory}/")
-
-    for file in files:
-        print(f"  📄 {file}")
-
-    print("=============================\n")
-
-    return {
-        "response": (
-            f"You are currently in the {root.name} project. "
-            f"I found {len(directories)} folders and {len(files)} files."
-        ),
-        "observations": {
-            "project": root.name,
-            "folder_count": len(directories),
-            "file_count": len(files),
-        },
-    }
 
 def find_file(filename=None):
+    from dataclasses import asdict
+    from services.project_retrieval import discover
+    result = discover()
+    if not result.success:
+        return {"success": False, "error": result.error or result.status.value,
+                "retrieval": asdict(result)}
+    matches = [path for path in result.paths if Path(path).name.casefold() == (filename or "").casefold()]
+    return {"success": True, "response": f"I found {len(matches)} matching files. " + ", ".join(matches),
+            "retrieval": asdict(result), "observations": {"file_search": filename,
+            "matches": matches, "limits": result.limits_reached}}
 
-    if not filename:
-
-        return {
-            "response": "Please specify a filename.",
-            "observations": {},
-        }
-
-    root = Path.cwd()
-
-    matches = []
-
-    for path in root.rglob("*"):
-
-        if path.name.lower() == filename.lower():
-
-            matches.append(path)
-
-    if not matches:
-
-        return {
-            "response": f"I couldn't find {filename}.",
-            "observations": {
-                "file_search": filename,
-                "matches": [],
-            },
-        }
-
-    print("\n===== SEARCH RESULTS =====")
-
-    for match in matches:
-        print(match.relative_to(root))
-
-    print("==========================\n")
-
-    relative_matches = [
-        str(match.relative_to(root))
-        for match in matches
-    ]
-
-    return {
-        "response": (
-            f"I found {len(matches)} matching file."
-            if len(matches) == 1
-            else f"I found {len(matches)} matching files."
-        ),
-        "observations": {
-            "file_search": filename,
-            "matches": relative_matches,
-        },
-    }
 
 def summarize_file_action(filename=None):
 

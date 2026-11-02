@@ -137,7 +137,9 @@ def test_explicit_project_paths_resolve_exactly_within_project(monkeypatch, tmp_
     directory.mkdir()
     target = directory / "router.py"
     target.write_text("pass\n")
-    monkeypatch.setattr(project_service, "_project_root", lambda: tmp_path)
+    from services import project_access
+    context = project_access.register_project("explicit-path-fixture", tmp_path)
+    monkeypatch.setattr(project_service, "get_project", lambda: context)
     assert project_service._find_matching_files("services/router.py") == [target]
     assert project_service._find_matching_files(r"services\router.py") == [target]
     assert project_service._find_matching_files("services/missing.py") == []

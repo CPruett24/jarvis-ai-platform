@@ -1,4 +1,4 @@
-from ollama import chat
+from services.ai_service import chat, OLLAMA_MODEL
 
 from services.project_context import (
     get_full_project_context,
@@ -77,6 +77,14 @@ def answer_question(
     file_info,
     conversation_context=None,
 ):
+    if file_info.get("evidence") is not None:
+        from services.ai_service import generate_source_answer
+        from services.source_answer import validate_answer, evidence_is_current
+        result = file_info["evidence"]
+        answer = validate_answer(generate_source_answer(question, result), result)
+        if not answer or not evidence_is_current(result):
+            return "I couldn't produce a current, source-referenced answer. Please retry."
+        return "Interpretation of retrieved source:\n" + answer
 
     project_context = get_full_project_context(
         question
@@ -90,7 +98,7 @@ def answer_question(
     )
 
     response = chat(
-        model="llama3.1:8b",
+        model=OLLAMA_MODEL,
         messages=[
             {
                 "role": "system",

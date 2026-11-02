@@ -3,12 +3,9 @@ import re
 from models.tool_request import ToolRequest
 
 def normalize_filename(text):
-
-    return (
-        text.strip()
-        .strip(".")
-        .replace("the ", "")
-    )
+    # Preserve literal dotfiles and words inside paths; exclusions must see the
+    # actual requested name rather than an altered alias such as '.env' → 'env'.
+    return normalize_summary_filename(text)
 
 
 def normalize_summary_filename(text):

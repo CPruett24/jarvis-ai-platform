@@ -109,3 +109,55 @@ def is_clear_new_question(command):
         r"how (?:does|do|is|are)|why (?:is|are|does|do))\s+\S+",
         command.lower().strip(),
     ))
+
+
+def resolve_source_request(command):
+    """Bounded deterministic C1 requests; conceptual questions stay conversational."""
+    text = command.strip().rstrip(".!?")
+    normalized = re.sub(r"^(?:can you |could you |please )", "", text, flags=re.I)
+    if normalized.lower() in {"list authorized projects", "what projects can you read", "show authorized projects"}:
+        return {"question": text, "operation": "projects"}
+    selection = re.fullmatch(r"(?:select|use) project ([\w-]+)", normalized, re.I)
+    if selection:
+        return {"question": text, "operation": "select", "selection_id": selection[1]}
+    direct = re.fullmatch(r"(?:read|show) (?:the )?(?:file )?(.+)", normalized, re.I)
+    if direct and re.search(r"[./\\]", direct[1]):
+        return {"question": text, "filename": direct[1], "operation": "excerpt"}
+    if re.fullmatch(r"explain (?:the )?router", normalized, re.I):
+        return {"question": text, "filename": "router", "operation": "read"}
+    if is_conversation_summary_phrase(normalized):
+        return None
+    if re.match(r"^(?:summarize|summarise|summarizing)\b", normalized, re.I):
+        return None  # Existing parser/tool path now executes the C1 capability.
+    if re.match(r"^(?:what about|how about|switch to|now explain|next explain)\b", normalized, re.I):
+        return None  # Existing deterministic topic-transition path owns these.
+    if re.fullmatch(r"(?:analyze|investigate) (?:these|the|my) files", normalized, re.I):
+        return {"question": text, "operation": "read"}
+    # Request framing is independent of the project subject. Keep the original
+    # question for retrieval, and recognize wrappers before any generic/agent
+    # routing. A bare mention of 'project', 'file' or an indefinite router isn't
+    # sufficient evidence of a request to inspect the user's code.
+    inquiry = r"(?:explain|describe|analyze|investigate|research|what|how|why|where|which|show|list|tell me|show me|find out|figure out|look into|walk me through|help me understand)\b"
+    if re.search(r"\b(?:this|my|the|our) project\b", normalized, re.I) and re.match(
+            "^" + inquiry, normalized, re.I) and not re.search(
+                r"\bproject (?:management|manager|planning|proposal|based learning)\b", normalized, re.I):
+        if re.match(r"^(?:what files|show|list)\b", normalized, re.I) and re.search(r"\b(?:files|structure|tree)\b", normalized, re.I):
+            return {"question": text, "operation": "list",
+                    "recursive": bool(re.search(r"\b(?:all|recursive|recursively)\b", normalized, re.I))}
+        return {"question": text, "operation": "search"}
+    component = re.match(
+        r"^(?:" + inquiry + r"\s+(?:how|why)|(?:how|why)\s+(?:does|do)) (?:the|our) "
+        r"(?P<subject>(?:[a-z_]+ ){0,3}(?:router|parser|dispatcher|controller|handler|service|module|cache|index)) "
+        r"(?:handles?|routes?|processes?|stores?|loads?|saves?|dispatches?|selects?|resolves?|reads?|writes?)\b",
+        normalized, re.I,
+    )
+    if component and not re.search(r"\b(?:network|wireless|wifi|wi-fi|packets?|internet traffic)\b", normalized, re.I):
+        return {"question": text, "filename": component["subject"], "operation": "read"}
+    match = re.fullmatch(r"what does (?:the )?([\w./\\:-]+)(?: do)?", normalized, re.I)
+    if match:
+        return {"question": text, "filename": match[1], "operation": "read"}
+    # Explicit filenames inside standalone code questions must not become guesses.
+    match = re.search(r"(?<![\w.])([\w./\\:-]+\.(?:py|js|ts|tsx|jsx|rs|go|md|txt|json|yaml|yml|toml))(?!\w)", normalized, re.I)
+    if match and re.match(r"^(?:what|how|why|describe|research|investigate|analyze|look into|figure out why|find out why|find out how)\b", normalized, re.I):
+        return {"question": text, "filename": match[1], "operation": "read"}
+    return None

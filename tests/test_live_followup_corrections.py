@@ -90,7 +90,8 @@ def test_other_interruptions_are_not_end_commands(monkeypatch, command):
 def test_full_file_timeout_end_sequence_uses_actual_router_and_prompt(monkeypatch, tmp_path):
     target = tmp_path / "example.py"
     target.write_text("FILE_SENTINEL = True\n")
-    monkeypatch.setattr(project_service, "_project_root", lambda: tmp_path)
+    from services import project_access
+    monkeypatch.setitem(project_access._projects, "jarvis", project_access.AuthorizedProject("jarvis", tmp_path, 99))
     monkeypatch.setattr(ai_service, "explain_code", lambda info, depth: f"file depth {depth}")
     monkeypatch.setattr(router, "execute_migrated_tool_request", lambda request: False)
     executed = []

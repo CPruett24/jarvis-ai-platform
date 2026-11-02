@@ -137,13 +137,13 @@ def test_normal_conversation_does_not_trigger_capability(
     )
 
     router.process(
-        "tell me about my project"
+        "tell me about a project management technique"
     )
 
     assert executed == []
 
     assert streamed == [
-        "tell me about my project"
+        "tell me about a project management technique"
     ]
 
 

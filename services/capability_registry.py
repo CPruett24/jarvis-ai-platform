@@ -23,6 +23,10 @@ class Capability:
 
 
 CAPABILITY_REGISTRY = {
+    "project_source": Capability(
+        name="Grounded Project Source", description="Read authorized project source with source references.",
+        category="development", available=True, tool_name="project_source",
+    ),
     # =========================================================
     # CORE / CURRENTLY AVAILABLE
     # =========================================================

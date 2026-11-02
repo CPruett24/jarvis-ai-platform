@@ -1,5 +1,9 @@
 from pathlib import Path
 from functools import lru_cache
+from dataclasses import replace
+from services.project_access import get_project, validate_project, resolve_project_path, ProjectAccessError
+from services.project_retrieval import read_source
+from models.source_evidence import RetrievalLimits
 
 
 def _file_signature(file_path):
@@ -8,6 +12,12 @@ def _file_signature(file_path):
     """
 
     path = Path(file_path)
+
+    context = validate_project(get_project())
+    try:
+        path = resolve_project_path(context, path.relative_to(context.root).as_posix())
+    except (ValueError, OSError):
+        return None
 
     try:
         stat = path.stat()
@@ -18,6 +28,8 @@ def _file_signature(file_path):
         str(path.resolve()),
         stat.st_mtime_ns,
         stat.st_size,
+        context.project_id,
+        context.revision,
     )
 
 
@@ -33,15 +45,18 @@ def get_cached_file_content(
     the file changes.
     """
 
-    path = Path(file_path)
-
-    try:
-        return path.read_text(
-            encoding="utf-8",
-            errors="ignore",
-        )
-    except OSError:
+    context = validate_project(get_project())
+    if signature[-2:] != (context.project_id, context.revision):
         return None
+    try:
+        relative = Path(file_path).relative_to(context.root).as_posix()
+    except ValueError:
+        return None
+    result = read_source(relative, context, limits=replace(RetrievalLimits(),
+                         max_lines=1000000, max_evidence_bytes=512 * 1024))
+    if result.success and result.excerpts and not result.excerpts[0].truncated:
+        return result.excerpts[0].text
+    return None
 
 
 def get_file_content(file_path):

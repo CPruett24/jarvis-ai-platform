@@ -102,6 +102,12 @@ def set_topic(topic):
     ):
         raise ValueError("A file topic requires a non-empty filename.")
 
+    if topic["type"] in {"file", "project"}:
+        from services.project_access import get_project
+        project = get_project(topic.get("project_id"))
+        topic.setdefault("project_id", project.project_id)
+        topic.setdefault("authorization_revision", project.revision)
+
     _current_topic = topic
     if topic["type"] == "file":
         mark_file_discussion()
@@ -126,7 +132,23 @@ def is_file_discussion_active():
 def get_topic() -> ConversationTopic | None:
     """Return a snapshot, not the mutable stored topic."""
 
+    if _current_topic is not None and "project_id" in _current_topic:
+        from services.project_access import get_project, ProjectAccessError
+        try:
+            project = get_project(_current_topic["project_id"])
+            if (project != get_project() or project.revision !=
+                    _current_topic.get("authorization_revision")):
+                return None
+        except ProjectAccessError:
+            return None
     return _current_topic.copy() if _current_topic is not None else None
+
+
+def get_stale_source_topic():
+    """Retain a stale-topic signal so a follow-up cannot silently become chat."""
+    if _current_topic and _current_topic.get("source_grounded") and get_topic() is None:
+        return _current_topic.copy()
+    return None
 
 
 def clear_topic():

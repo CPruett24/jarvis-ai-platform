@@ -27,6 +27,11 @@ def test_summary_filename_preserves_literal_target(target, expected):
     assert parsed.arguments == {"filename": expected}
 
 
+@pytest.mark.parametrize("target", [".env", "services/my file.py", "weather the file.py"])
+def test_explanation_preserves_literal_filename_for_policy(target):
+    assert parse_command("explain " + target).arguments["filename"] == target
+
+
 @pytest.mark.parametrize("utterance", [
     "summarize our", "summarize our last", "summarize our la-",
     "please summarize our last con-", "summarize our previous",

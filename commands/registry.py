@@ -22,8 +22,13 @@ from commands.actions import (
     search_project_action,
     explain_file_action,
 )
+from services.source_answer import source_capability, summarize_source_capability, explain_source_capability
 
 COMMAND_REGISTRY = {
+    "project_source": {
+        "function": source_capability,
+        "description": "Read authorized project source and answer with validated evidence references.",
+    },
     "hello": {
         "function": hello,
         "description": "Greets the user."
@@ -119,7 +124,7 @@ COMMAND_REGISTRY = {
         "description": "Finds a file within the project."
     },
     "summarize_file": {
-    "function": summarize_file_action,
+    "function": summarize_source_capability,
     "description": "Summarizes a project file."
     },
 
@@ -129,7 +134,7 @@ COMMAND_REGISTRY = {
     },
 
     "explain_file": {
-        "function": explain_file_action,
+        "function": explain_source_capability,
         "description": "Explains the purpose of a source code file."
     },
 

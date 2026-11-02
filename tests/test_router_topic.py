@@ -5,6 +5,7 @@ import pytest
 from commands import actions, router
 from services import ai_service
 from services import conversation_manager as conversation
+from services.project_access import get_project
 
 
 @pytest.fixture(autouse=True)
@@ -43,7 +44,7 @@ def file_actions(monkeypatch):
 def test_switch_commits_new_file_and_follow_ups_use_its_depth(file_actions):
     conversation.set_topic({"type": "file", "filename": "old.py", "depth": 4})
     router.process("next explain new.py")
-    assert conversation.get_topic() == {"type": "file", "filename": "new.py", "depth": 1}
+    assert conversation.get_topic() == {"type": "file", "filename": "new.py", "depth": 1, "project_id": get_project().project_id, "authorization_revision": get_project().revision}
     router.process("tell me more")
     router.process("continue")
     assert file_actions == [("new.py", 1), ("new.py", 2), ("new.py", 3)]

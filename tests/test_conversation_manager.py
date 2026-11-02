@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 from models.tool_request import ToolRequest
+from services.project_access import get_project
 from services.conversation_manager import (
     has_pending_request,
     set_topic,
@@ -35,7 +36,8 @@ def test_topic_snapshots_and_default_depth():
     assert "depth" not in original
     original["filename"] = "changed.py"
     snapshot = get_topic()
-    assert snapshot == {"type": "file", "filename": "router.py", "depth": 1}
+    assert snapshot == {"type": "file", "filename": "router.py", "depth": 1,
+                        "project_id": get_project().project_id, "authorization_revision": get_project().revision}
     snapshot["filename"] = "also_changed.py"
     get_conversation_context()["topic"]["depth"] = 99
     assert get_topic()["filename"] == "router.py"
@@ -93,7 +95,8 @@ def test_topic_switch_proposes_target_without_changing_topic(phrase):
     set_topic({"type": "file", "filename": "old.py", "depth": 3})
     request = resolve_topic_switch(phrase + " router.py")
     assert request.arguments == {"filename": "router.py", "depth": 1}
-    assert get_topic() == {"type": "file", "filename": "old.py", "depth": 3}
+    assert get_topic() == {"type": "file", "filename": "old.py", "depth": 3,
+                           "project_id": get_project().project_id, "authorization_revision": get_project().revision}
     assert resolve_topic_switch(phrase) is None
 
 

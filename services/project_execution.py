@@ -5,6 +5,7 @@ from pathlib import Path
 
 from services.project_analysis_cache import (
     get_source_tree,
+    get_file_content,
 )
 
 from services.project_symbol_index import (
@@ -48,7 +49,8 @@ def _module_to_path(module_name):
         *parts
     ).with_suffix(".py")
 
-    if module_path.exists():
+    from services.project_service import _is_project_file
+    if _is_project_file(module_path):
         return module_path
 
     package_path = _project_root().joinpath(
@@ -56,7 +58,7 @@ def _module_to_path(module_name):
         "__init__.py",
     )
 
-    if package_path.exists():
+    if _is_project_file(package_path):
         return package_path
 
     return None
@@ -272,10 +274,9 @@ def _get_imported_modules(
 
     try:
 
-        content = path.read_text(
-            encoding="utf-8",
-            errors="ignore",
-        )
+        content = get_file_content(path)
+        if content is None:
+            return {}
 
     except Exception:
         return {}

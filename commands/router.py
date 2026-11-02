@@ -29,6 +29,8 @@ from services.conversation_manager import (
     resolve_follow_up,
     is_explicit_file_target,
     get_topic,
+    set_topic,
+    set_pending_request,
     mark_conversation_discussion,
     mark_file_discussion,
 )
@@ -131,6 +133,7 @@ from models.tool_request import ToolRequest
 
 import queue
 import threading
+import re
 import time
 
 ALIASES = {
@@ -370,6 +373,7 @@ INTERRUPTION_HANDOFF_SECONDS = 0.35
 def _stream_with_interrupt(
     command,
     interrupt_controller,
+    stream_factory=None,
 ):
     """
     Run the AI stream in a background thread so the
@@ -400,9 +404,9 @@ def _stream_with_interrupt(
 
         try:
 
-            for chunk in stream_ai_response(
-                command, cancellation_event=cancellation_event,
-            ):
+            stream = (stream_factory(cancellation_event) if stream_factory else
+                      stream_ai_response(command, cancellation_event=cancellation_event))
+            for chunk in stream:
                 check_cancelled(cancellation_event)
                 enqueue(chunk)
 
@@ -481,7 +485,7 @@ def _ask_and_speak(command):
         receipt.finish(result)
 
 
-def process_streaming_conversation(command):
+def process_streaming_conversation(command, stream_factory=None):
     from services.conversation_service import ResponseDelivery, capture_response_delivery
     from services.tts.outcome import PlaybackOutcome
     print("Calling streaming conversation AI...")
@@ -499,7 +503,9 @@ def process_streaming_conversation(command):
         monitor.start()
         speech.start_response()
         with capture_response_delivery(receipt):
-            for chunk in _stream_with_interrupt(command, controller):
+            stream = (_stream_with_interrupt(command, controller, stream_factory) if stream_factory else
+                      _stream_with_interrupt(command, controller))
+            for chunk in stream:
                 if controller.was_interrupted():
                     break
                 if chunk:
@@ -799,6 +805,8 @@ MIGRATED_DETERMINISTIC_CAPABILITIES = {
 def execute_registered_capability(
     capability_name,
     arguments=None,
+    speak_result=True,
+    cancellation_event=None,
 ):
     """Execute and present a registered deterministic capability.
 
@@ -807,6 +815,8 @@ def execute_registered_capability(
     assistant statement.
     """
 
+    if cancellation_event is not None and capability_name == "project_source":
+        arguments = {**(arguments or {}), "cancellation_event": cancellation_event}
     if arguments is None:
 
         result = execute_capability(
@@ -820,6 +830,7 @@ def execute_registered_capability(
             arguments=arguments,
         )
 
+    check_cancelled(cancellation_event)
     if result.success:
 
         observations = get_observed_information(
@@ -840,11 +851,33 @@ def execute_registered_capability(
         result
     )
 
-    if response:
+    if capability_name == "project_source" and response:
+        add_message("assistant", response, source="inferred" if result.success else "router")
+        if result.success and result.data.get("topic"):
+            topic = result.data["topic"]
+            topic["query"] = (arguments or {}).get("question", "")
+            set_topic(topic)
+        elif result.data.get("candidates") or result.data.get("needs_filename"):
+            from services.project_access import get_project
+            context = get_project()
+            set_pending_request({"source_grounded": True, "candidates": result.data["candidates"],
+                "project_id": context.project_id, "authorization_revision": context.revision,
+                "question": (arguments or {}).get("question", ""),
+                "operation": (arguments or {}).get("operation", "read"), "missing": "filename"})
+
+    if response and speak_result:
 
         speak(response)
 
     return result
+
+
+def stream_source_response(arguments, cancellation_event):
+    """Validate a complete source answer before speech; reuse voice watchdogs."""
+    result = execute_registered_capability("project_source", arguments=arguments,
+        speak_result=False, cancellation_event=cancellation_event)
+    check_cancelled(cancellation_event)
+    yield format_capability_result(result)
 
 
 def execute_migrated_tool_request(
@@ -989,6 +1022,57 @@ def _process_once(command, allow_interruption=True):
             capability.capability_name
         )
 
+        return
+
+    # C1 resolves project-source requests before generic explanations/agents.
+    # Archive recall and capability management retain precedence above.
+    from services.code_intent import resolve_source_request
+    from services.project_access import get_project
+    source_request = resolve_source_request(normalized_command)
+    from services.conversation_manager import get_stale_source_topic
+    if source_request is None and get_stale_source_topic() and normalized_command in {
+            "tell me more", "explain that", "explain it", "continue", "why", "go on"}:
+        speak("The project context or authorization changed. Please repeat the project question.")
+        return
+    source_topic = get_topic()
+    if source_request is None and source_topic and source_topic.get("source_grounded"):
+        if should_use_file_context(normalized_command, source_topic):
+            source_request = {"question": normalized_command, "operation": "read",
+                              "filename": source_topic["filename"], "detail_depth": source_topic["depth"] + 1}
+        elif source_topic.get("type") == "project" and normalized_command in {
+                "tell me more", "explain that", "explain it", "continue"}:
+            source_request = {"question": normalized_command + " " + source_topic.get("query", ""),
+                              "operation": "search"}
+    source_pending = get_pending_request()
+    if source_request is None and source_pending and source_pending.get("source_grounded"):
+        context = get_project()
+        if (context.project_id != source_pending["project_id"] or
+                context.revision != source_pending["authorization_revision"]):
+            clear_pending_request()
+            speak("Project authorization changed; please repeat the request.")
+            return
+        choices = source_pending["candidates"]
+        reply = normalized_command.replace("\\", "/")
+        matches = [path for path in choices if reply == path.lower() or reply == path.lower().rsplit("/", 1)[-1]]
+        if not choices and re.fullmatch(r"[\w./\\:-]+", reply) and not is_clear_new_question(reply):
+            matches = [reply]
+        if len(matches) == 1:
+            source_request = {"question": source_pending["question"], "filename": matches[0],
+                              "operation": source_pending["operation"]}
+        elif not is_clear_new_question(normalized_command):
+            speak("Please specify one of these project-relative paths: " + ", ".join(choices))
+            return
+        else:
+            clear_pending_request()
+    if source_request is not None:
+        clear_pending_request()
+        context = get_project()
+        source_request.update(project_id=context.project_id, authorization_revision=context.revision)
+        add_message("user", normalized_command, source="user")
+        if allow_interruption:
+            return process_streaming_conversation(normalized_command,
+                stream_factory=lambda event: stream_source_response(source_request, event))
+        execute_registered_capability("project_source", arguments=source_request)
         return
 
 
@@ -1402,6 +1486,10 @@ def _process_once(command, allow_interruption=True):
 
     if intent.type == "impact_analysis":
 
+        if get_project().project_id != "jarvis":
+            speak("Relationship analysis is unavailable for additional projects; source reading is available.")
+            return
+
         refresh_project_analysis_if_changed()
 
         result = explain_function_impact(
@@ -1496,6 +1584,9 @@ def _process_once(command, allow_interruption=True):
             speak(response)
 
             return
+
+        speak("I couldn't retrieve the current file. Please specify a readable project file.")
+        return
 
     # =========================================================
     # FOLLOW-UP COMMAND

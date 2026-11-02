@@ -155,6 +155,11 @@ def execute_capability(
 
             data = result
 
+            # Typed C1 outcomes opt in; legacy dictionaries keep their contract.
+            if result.get("success") is False:
+                return CapabilityExecutionResult(success=False, capability=capability_name,
+                    data=data, error=result.get("error") or "Source retrieval failed.")
+
         else:
 
             data = {

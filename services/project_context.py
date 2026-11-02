@@ -20,14 +20,13 @@ ROADMAP = DOCS_DIR / "ROADMAP.md"
 def read_document(path):
     """Read a project document and return its contents."""
 
-    if not path.exists():
+    from services.project_access import get_project
+    from services.project_analysis_cache import get_file_content
+    if get_project().project_id != "jarvis" or not path.exists():
         return ""
 
     try:
-        return path.read_text(
-            encoding="utf-8",
-            errors="ignore",
-        )
+        return get_file_content(path) or ""
 
     except Exception as e:
 

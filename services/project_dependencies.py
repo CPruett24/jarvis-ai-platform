@@ -2,6 +2,7 @@ import ast
 from pathlib import Path
 
 from services.project_service import find_matching_files
+from services.project_analysis_cache import get_file_content
 
 
 def _resolve_module_path(module_name):
@@ -23,7 +24,8 @@ def _resolve_module_path(module_name):
         *parts
     ).with_suffix(".py")
 
-    if module_path.exists():
+    from services.project_service import _is_project_file
+    if _is_project_file(module_path):
         return module_path
 
     package_path = root.joinpath(
@@ -31,7 +33,7 @@ def _resolve_module_path(module_name):
         "__init__.py",
     )
 
-    if package_path.exists():
+    if _is_project_file(package_path):
         return package_path
 
     return None
@@ -92,10 +94,9 @@ def get_file_dependencies(filename):
 
     try:
 
-        content = file.read_text(
-            encoding="utf-8",
-            errors="ignore",
-        )
+        content = get_file_content(file)
+        if content is None:
+            return None
 
     except Exception:
         return None
