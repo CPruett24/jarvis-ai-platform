@@ -1,21 +1,46 @@
 import re
 
 
+def _relationship_project_qualifier(text):
+    """Separate explicit project wording without resolving or authorizing it."""
+    qualifier = re.search(r"\s+in (?:(?:my|our|the|this) (?:(.+?) )?project|project (.+))$", text, re.I)
+    metadata = {}
+    if qualifier:
+        name = qualifier[1] or qualifier[2]
+        if name:
+            metadata["project_qualifier"] = name.strip().strip("`\"'")
+        text = text[:qualifier.start()].strip()
+    return text, metadata
+
+
 def relationship_target(text):
     """Syntax only; exact identities are resolved by canonical analysis later."""
-    text = text.strip().strip("`\"'")
+    text, metadata = _relationship_project_qualifier(text.strip())
+    text = re.sub(r"^(?:the )?(?:function |method )?", "", text, flags=re.I)
+    text = re.sub(r" (?:function|method)$", "", text, flags=re.I).strip().strip("`\"'")
+    if text.endswith("()"):
+        text = text[:-2]
+    if not text:
+        return {**metadata, "target_error": "Please specify a function, method, or project-relative file."}
     if "::" in text:
         filename, qualified_name = text.split("::", 1)
-        return {"filename": filename, "qualified_name": qualified_name}
-    return {"filename": text} if text.endswith(".py") else {"qualified_name": text}
+        if not filename or not qualified_name:
+            return {**metadata, "target_error": "Please specify both the file and qualified symbol after ::."}
+        return {**metadata, "filename": filename, "qualified_name": qualified_name}
+    if text.endswith(".py"):
+        return {**metadata, "filename": text}
+    if not re.fullmatch(r"(?:[^\W\d]\w*|<locals>)(?:\.(?:[^\W\d]\w*|<locals>))*", text):
+        return {**metadata, "target_error": "Please specify an exact function or method name, optionally file.py::Qualified.name."}
+    return {**metadata, "qualified_name": text}
 
 
 def resolve_relationship_request(command):
     """Explicit relationship grammar; case-insensitive verbs, case-preserved targets."""
     text = command.strip().rstrip(".!?")
+    text, project_metadata = _relationship_project_qualifier(text)
     patterns = (
-        (r"(?:what|who) calls (.+)", "calls", "reverse"),
-        (r"(?:what|which functions) does (.+) call", "calls", "forward"),
+        (r"(?:(?:what|which) (?:functions|methods) call|(?:what|who) calls)(?:\s+(.*))?", "calls", "reverse"),
+        (r"(?:what|(?:what|which) (?:functions|methods)) does (.+) call", "calls", "forward"),
         (r"(?:what|which files) (?:depends? on|imports?) (.+)", "imports", "reverse"),
         (r"what does (.+) (?:import|depend on)", "imports", "forward"),
         (r"(?:import )?dependencies of (.+)", "imports", "forward"),
@@ -26,15 +51,15 @@ def resolve_relationship_request(command):
         match = re.fullmatch(pattern, text, re.I)
         if match:
             return {"operation": operation, "direction": direction, "depth": 2,
-                    **relationship_target(match[1])}
+                    **relationship_target(match[1] or ""), **project_metadata}
     match = re.fullmatch(r"trace (.+?)(?: (forward|reverse))?(?: (?:to |for )?(\d+) levels?)?", text, re.I)
     if match:
         return {"operation": "trace", "direction": (match[2] or "forward").lower(),
-                "depth": int(match[3]) if match[3] else 2, **relationship_target(match[1])}
+                "depth": int(match[3]) if match[3] else 2, **relationship_target(match[1]), **project_metadata}
     match = re.fullmatch(r"how do (.+?) and (.+?) connect", text, re.I)
     if match:
         return {"operation": "connections", "direction": "forward", "depth": 2,
-                "comparison": relationship_target(match[2]), **relationship_target(match[1])}
+                "comparison": relationship_target(match[2]), **relationship_target(match[1]), **project_metadata}
     return None
 
 

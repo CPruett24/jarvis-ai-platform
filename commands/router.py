@@ -598,6 +598,19 @@ def normalize_interruption(command):
     if not command:
         return ""
 
+    # Preserve qualified identifiers in C2 handoffs while retaining the legacy
+    # normalization of other interrupted commands below.
+    import re
+    from services.code_intent import resolve_relationship_request
+    original = re.sub(r"^(?:wait[,\s]+stop|wait|stop|hold on|hang on)[,\s]+", "",
+                      command.strip(), flags=re.I)
+    if resolve_relationship_request(original) is not None:
+        return original
+    pending = get_pending_request()
+    if (isinstance(pending, dict) and pending.get("relationship_grounded")
+            and original in pending.get("candidates", ())):
+        return original
+
     command = command.lower().strip()
 
     # Normalize punctuation to spaces.
@@ -1128,6 +1141,21 @@ def _process_once(command, allow_interruption=True):
         try:
             if relationship_request.pop("stale_context", False):
                 raise ProjectAccessError("Stale relationship topic")
+            target_error = relationship_request.pop("target_error", None)
+            if target_error:
+                from services.capability_executor import CapabilityExecutionResult
+                result = CapabilityExecutionResult(False, "multi_file_reasoning", error=target_error)
+                response = present_relationship_result(result, {"context": get_project(), "question": original_command})
+                speak(response)
+                return result
+            qualifier = relationship_request.pop("project_qualifier", None)
+            if qualifier:
+                from services.project_access import list_projects
+                matches = [project for project in list_projects() if project.project_id.casefold() == qualifier.casefold()]
+                if len(matches) != 1 or matches[0] != get_project():
+                    response = "That named project is not the active authorized project. Select an authorized project explicitly, then repeat the relationship question."
+                    speak(response)
+                    return response
             relationship_request.update(context=get_project(), question=original_command)
         except ProjectAccessError:
             response = "The project context or authorization changed. Please repeat the project question."

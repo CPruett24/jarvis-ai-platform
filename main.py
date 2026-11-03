@@ -83,11 +83,11 @@ while True:
 
             update_last_command(command)
 
-            command = command.lower().strip(".,!?")
+            command = command.strip().rstrip(".,!?")
 
             print(f"Session command: '{command}'")
 
-            if command == "exit":
+            if command.lower() == "exit":
 
                 handle_conversation_boundary("exit")
                 end_session()

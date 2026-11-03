@@ -108,13 +108,13 @@ def _listen_for_speech_result():
 
         print(f"You: {command}")
 
-        return SpeechListenResult(text=command.lower().strip())
+        return SpeechListenResult(text=command.strip())
 
     except sr.UnknownValueError:
         return SpeechListenResult()
     
 def listen_for_wake_word():
-    speech = listen_for_speech()
+    speech = listen_for_speech().lower()
 
     if speech == "":
         return False
