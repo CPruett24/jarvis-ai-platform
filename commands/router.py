@@ -498,7 +498,7 @@ def _ask_and_speak(command):
 def process_streaming_conversation(command, stream_factory=None):
     from services.conversation_service import ResponseDelivery, capture_response_delivery
     from services.tts.outcome import PlaybackOutcome
-    print("Calling streaming conversation AI...")
+    print("Streaming capability response..." if stream_factory is not None else "Calling streaming conversation AI...")
     speech = ConversationSpeech()
     controller = ConversationInterruptController(speech)
     monitor = None

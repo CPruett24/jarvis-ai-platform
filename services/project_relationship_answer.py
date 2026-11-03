@@ -18,6 +18,46 @@ from services.cancellation import OperationCancelled
 from services.source_answer import validate_answer
 
 
+def _incomplete_response(analysis, graph, trace):
+    """Allowlisted diagnostic categories only, after canonical owner validation.
+
+    Never render paths, source expressions, diagnostic exception strings, or
+    tentative relationship facts. Missing metadata stays an explicit limitation.
+    """
+    coverage = analysis.snapshot.coverage
+    exhausted = {reason.removeprefix("analysis:") for reason in coverage.budget_exhausted}
+    cutoffs = set(trace.cutoff_reasons) if trace is not None else set()
+    reasons = []
+    if coverage.unsupported:
+        reasons.append("unsupported source coverage")
+    if "relationships" in exhausted:
+        reasons.append("relationship extraction limit reached")
+    if "depth" in cutoffs:
+        reasons.append("traversal depth limit reached")
+    if "traversed_edges" in cutoffs:
+        reasons.append("traversal edge limit reached")
+    boundaries = trace.boundary_ids if trace is not None else graph.boundary_ids
+    if boundaries:
+        reasons.append("unresolved relationship boundaries")
+    if not coverage.discovery_complete:
+        reasons.append("incomplete source inventory")
+    if coverage.skipped:
+        reasons.append("source files were not fully analyzed")
+    if coverage.parse_failures:
+        reasons.append("source parsing failures")
+    for resource, label in (
+        ("python_files", "Python file limit reached"),
+        ("source_bytes", "source byte limit reached"),
+        ("ast_nodes", "AST node limit reached"),
+        ("seconds", "analysis time limit reached"),
+        ("visited_symbols", "traversal node limit reached"),
+    ):
+        if resource in exhausted or resource in cutoffs:
+            reasons.append(label)
+    detail = "Reasons: " + "; ".join(reasons) + ". " if reasons else "Detailed refusal metadata is unavailable. "
+    return "The relationship analysis is incomplete. " + detail + "No relationship facts were published."
+
+
 def render_relationship_evidence(packet, request, order=None):
     """Validated deterministic preview. This function is not a publication gate."""
     validate_relationship_evidence(packet, request)
@@ -64,9 +104,7 @@ def answer_relationships(analysis, value, request, *, use_model=False):
             return limitation("ambiguous", "The target is ambiguous. Specify a project-relative file and qualified symbol name.")
         complete = trace.complete if trace else analysis.snapshot.coverage.complete and not graph.boundary_ids
         if not complete:
-            return limitation("incomplete", "The analysis or result is incomplete, unresolved, or truncated. "
-                              "I cannot release relationship facts through the complete-result publication gate. "
-                              "Narrow the target or resolve the reported boundaries.")
+            return limitation("incomplete", _incomplete_response(analysis, graph, trace))
         packet = select_relationship_evidence(analysis, value, request)
         order = None
         if use_model:
