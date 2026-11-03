@@ -161,3 +161,20 @@ class AnalysisRequest:
             raise ProjectAccessError("Result does not belong to the captured project context.")
         # Source/inventory freshness must be checked by the future analyzer.
         return result
+
+    def validate_scope(self, scope):
+        """C3 admission only; declarations never authorize roots or publication."""
+        from models.project_scope import AnalysisScope, ScopeKind
+        from services.project_retrieval import permitted
+        if not isinstance(scope, AnalysisScope):
+            raise ValueError("Expected a C3 scope declaration.")
+        self.check_authorization()
+        if scope.project != self.identity:
+            raise ProjectAccessError("Scope does not belong to the captured active project/revision.")
+        paths = scope.search_files + scope.support.required_files
+        if any(not permitted(path) for path in paths):
+            raise ProjectAccessError("C3 scope cannot bypass C1 source exclusions.")
+        if scope.kind == ScopeKind.DIRECTORY and any(
+                not permitted(root + "/scope_probe.py") for root in scope.roots):
+            raise ProjectAccessError("C3 directory scope cannot bypass C1 exclusions.")
+        return scope
