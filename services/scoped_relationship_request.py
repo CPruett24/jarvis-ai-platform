@@ -57,11 +57,12 @@ def parse_scoped_caller_request(command):
     if re.search(transitive, text, re.I):
         return ScopedCallerIntent(direct=False, **metadata)
     pattern = (r"(?:(?:what|which) (?:functions|methods) (?:directly )?call|"
-               r"(?:what|who) (?:directly )?calls|(?:show|list)(?: me)? (?:direct )?callers of)(?:\s+(.*))?")
+               r"(?:what|who) (?:directly )?calls|(?:show|list)(?: me)? (?:verified )?(?:direct )?callers of)(?:\s+(.*))?")
     match = re.fullmatch(pattern, text, re.I)
     if not match:
         return None
     target = relationship_target(match[1] or "")
     return ScopedCallerIntent(qualified_name=target.get("qualified_name"), filename=target.get("filename"),
         error=scope_error or ("target_required" if target.get("target_error") or not target.get("qualified_name") else ""),
+        findings_only=bool(re.match(r"(?:show|list)(?: me)? verified (?:direct )?callers of\b", text, re.I)),
         **metadata)

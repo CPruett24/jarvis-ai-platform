@@ -19,12 +19,19 @@ def limitation(text, status="limitation"):
 
 def relationship_capability(*, context, operation, filename=None, qualified_name=None,
                             direction="forward", depth=2, comparison=None, question="",
-                            cancellation_event=None, limits=None, use_model=False):
+                            cancellation_event=None, limits=None, use_model=False,
+                            scoped_command=None, claim=None):
     """One captured authorization, one budget, canonical CP2-4 analysis only.
 
     No history, speech, topic state, model target resolution, or root registration.
     The private publication handle is consumed locally and never persisted.
     """
+    if scoped_command is not None:
+        from services.scoped_relationship_delivery import scoped_relationship_capability
+        from models.project_scope import CompletenessClaim
+        return scoped_relationship_capability(context=context, scoped_command=scoped_command,
+            cancellation_event=cancellation_event, limits=limits, question=question,
+            claim=CompletenessClaim.SCOPED_COMPLETE if claim is None else claim)
     check_cancelled(cancellation_event)
     try:
         request = AnalysisRequest(context, AnalysisBudget(limits, cancellation_event))

@@ -8,14 +8,108 @@ from services.voice_diagnostics import voice_trace
 
 conversation_history = []
 _response_delivery = ContextVar("response_delivery", default=None)
+_delivery_lock = threading.RLock()
+_active_delivery = None
+_delivery_generation = 0
+
+
+def current_response_delivery():
+    return _response_delivery.get()
+
+
+def supersede_guarded_delivery():
+    """A new routed command also supersedes C3 when it needs no own receipt."""
+    global _active_delivery
+    with _delivery_lock:
+        previous = _active_delivery
+        if previous is not None and previous.guarded:
+            _active_delivery = None
+        else:
+            previous = None
+    if previous is not None:
+        previous.cancel()
 
 
 class ResponseDelivery:
     """Operation-scoped receipt; never locate an answer by text or global tail."""
-    def __init__(self):
+    def __init__(self, cancellation_event=None):
         self.lock = threading.Lock()
         self.records = []
         self.status = "unknown"
+        self.cancellation_event = cancellation_event or threading.Event()
+        self.closed = False
+        self.publication = None
+        self.prepared_publication = None
+        self.publication_identity = None
+        self.guarded = False
+        self.cancel_callback = None
+        self.playback_guard = None
+        from services import conversation_db
+        self.session = conversation_db.current_session
+        self.generation = _delivery_generation
+        self.consumer_thread = threading.get_ident()
+
+    def activate(self):
+        global _active_delivery
+        with _delivery_lock:
+            if self.guarded:
+                self.check_current()
+            previous = _active_delivery
+            _active_delivery = self
+        if previous is not None and previous is not self and previous.guarded:
+            previous.cancel()
+
+    def cancel(self):
+        self.cancellation_event.set()
+        if self.cancel_callback is not None:
+            self.cancel_callback()
+
+    def check_current(self, *, consumer=False):
+        from services import conversation_db
+        from services.cancellation import OperationCancelled, check_cancelled
+        check_cancelled(self.cancellation_event)
+        with _delivery_lock:
+            if (self.closed or _active_delivery is not self or self.generation != _delivery_generation
+                    or self.session is not conversation_db.current_session
+                    or consumer and (current_response_delivery() is not self
+                                     or threading.get_ident() != self.consumer_thread)):
+                raise OperationCancelled("Response receipt is superseded, closed or belongs to another session/consumer.")
+
+    def claim_publication(self, publication):
+        self.check_current(consumer=True)
+        with _delivery_lock:
+            if self.publication is not None:
+                from services.cancellation import OperationCancelled
+                raise OperationCancelled("Response publication receipt has already been consumed.")
+            self.publication = publication
+
+    def prepare_publication(self, publication, identity):
+        """Bind one producer result to this operation before consumer admission."""
+        self.check_current()
+        with _delivery_lock:
+            if self.prepared_publication is not None:
+                from services.cancellation import OperationCancelled
+                raise OperationCancelled("A response receipt already has a prepared publication.")
+            self.prepared_publication = publication
+            self.publication_identity = identity
+
+    def guard_publication(self):
+        with _delivery_lock:
+            self.check_current()
+            self.guarded = True
+
+    def check_publication(self, publication):
+        self.check_current()
+        if self.publication is not publication:
+            from services.cancellation import OperationCancelled
+            raise OperationCancelled("Response publication receipt does not match.")
+
+    @contextmanager
+    def publication_window(self):
+        """Serialize guarded history effects against session/request replacement."""
+        with _delivery_lock:
+            self.check_current(consumer=True)
+            yield
 
     def record(self, entry, record_id):
         with self.lock:
@@ -32,6 +126,7 @@ class ResponseDelivery:
                 print(f"[Conversation] Playback status save failed ({type(error).__name__}).")
 
     def finish(self, result):
+        global _active_delivery
         status = playback_outcome(result)
         if status == PlaybackOutcome.SKIPPED:
             status = PlaybackOutcome.FAILED
@@ -40,10 +135,15 @@ class ResponseDelivery:
             for entry, record_id in self.records:
                 self._update(entry, record_id)
         voice_trace("playback_final", outcome=self.status, records=len(self.records))
+        with _delivery_lock:
+            self.closed = True
+            if _active_delivery is self:
+                _active_delivery = None
 
 
 @contextmanager
 def capture_response_delivery(receipt):
+    receipt.activate()
     token = _response_delivery.set(receipt)
     try:
         yield receipt
@@ -184,4 +284,10 @@ def get_source_aware_history(
     return formatted_history
 
 def clear_history():
+    global _delivery_generation
+    with _delivery_lock:
+        _delivery_generation += 1
+        previous = _active_delivery
+    if previous is not None and previous.guarded:
+        previous.cancel()
     conversation_history.clear()

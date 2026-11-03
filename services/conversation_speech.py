@@ -57,6 +57,7 @@ class ConversationSpeech:
         self.response_id = uuid.uuid4().hex[:8]
         self.results = []
         self.terminal_outcome = None
+        self.delivery_guard = None
 
         self.worker = threading.Thread(
             target=self._speech_worker,
@@ -91,6 +92,12 @@ class ConversationSpeech:
                 if self.interrupted.is_set():
                     voice_trace("utterance_result", utterance=utterance_id, outcome="skipped",
                                 pending=self.speech_queue.unfinished_tasks)
+                    continue
+
+                if self.delivery_guard is not None and not self.delivery_guard():
+                    self.interrupt()
+                    continue
+                if self.interrupted.is_set():
                     continue
 
                 with self.progress_lock:

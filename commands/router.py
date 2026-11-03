@@ -504,7 +504,14 @@ def process_streaming_conversation(command, stream_factory=None):
     monitor = None
     full_response = ""
     cancelled = False
-    receipt = ResponseDelivery()
+    receipt = ResponseDelivery(cancellation_event=controller.interrupted)
+    receipt.cancel_callback = getattr(speech, "interrupt", None)
+    # Reuse the existing worker, queue and provider. C2/generic responses have
+    # no playback guard and retain their established behavior.
+    def check_delivery():
+        guard = receipt.playback_guard
+        return guard is None or guard()
+    speech.delivery_guard = check_delivery
     outcome = PlaybackOutcome.UNKNOWN
     response_error = False
     interrupted_text = None
@@ -519,12 +526,20 @@ def process_streaming_conversation(command, stream_factory=None):
                 if controller.was_interrupted():
                     break
                 if chunk:
+                    if receipt.guarded:
+                        receipt.check_current()
                     full_response += chunk
                     speech.add_chunk(chunk)
         if not controller.was_interrupted():
             speech.finish()
             waiting_since = time.monotonic()
             while not controller.was_interrupted() and not speech.is_finished():
+                if receipt.guarded:
+                    try:
+                        receipt.check_current()
+                    except OperationCancelled:
+                        receipt.cancel()
+                        break
                 progress = getattr(speech, "progress_timestamp", lambda: None)()
                 if time.monotonic() - (progress if progress is not None else waiting_since) >= PLAYBACK_INACTIVITY_SECONDS:
                     outcome = PlaybackOutcome.TIMED_OUT
@@ -576,6 +591,9 @@ def process_streaming_conversation(command, stream_factory=None):
                     controller.interrupted.set()
     if interrupted_text:
         return INTERRUPTION_PREFIX + interrupted_text
+    if receipt.guarded and (cancelled or outcome in {
+            PlaybackOutcome.INTERRUPTED, PlaybackOutcome.TIMED_OUT, PlaybackOutcome.FAILED}):
+        return ""
     print("AI returned:", full_response)
     return full_response
 
@@ -602,14 +620,19 @@ def normalize_interruption(command):
     # normalization of other interrupted commands below.
     import re
     from services.code_intent import resolve_relationship_request
+    from services.scoped_relationship_request import parse_scoped_caller_request
     original = re.sub(r"^(?:wait[,\s]+stop|wait|stop|hold on|hang on)[,\s]+", "",
                       command.strip(), flags=re.I)
-    if resolve_relationship_request(original) is not None:
+    if resolve_relationship_request(original) is not None or parse_scoped_caller_request(original) is not None:
         return original
     pending = get_pending_request()
     if (isinstance(pending, dict) and pending.get("relationship_grounded")
             and original in pending.get("candidates", ())):
         return original
+    if isinstance(pending, dict) and pending.get("scoped_relationship"):
+        from services.scoped_relationship_delivery import resolve_scoped_follow_up
+        if resolve_scoped_follow_up(original, pending) is not None:
+            return original
 
     command = command.lower().strip()
 
@@ -837,6 +860,23 @@ def execute_registered_capability(
     future AI turns receive evidence rather than an unlabelled
     assistant statement.
     """
+    scoped = capability_name == "multi_file_reasoning" and (arguments or {}).get("scoped_command") is not None
+    if scoped:
+        check_cancelled(cancellation_event)
+        from services.conversation_service import current_response_delivery, ResponseDelivery, capture_response_delivery
+        from services.tts.outcome import PlaybackOutcome
+        current_receipt = current_response_delivery()
+        if current_receipt is None or current_receipt.closed or current_receipt.cancellation_event.is_set():
+            receipt = ResponseDelivery(cancellation_event=cancellation_event)
+            outcome = PlaybackOutcome.FAILED
+            try:
+                with capture_response_delivery(receipt):
+                    result = execute_registered_capability(capability_name, arguments, speak_result, receipt.cancellation_event)
+                outcome = PlaybackOutcome.UNKNOWN
+                return result
+            finally:
+                if not receipt.closed:
+                    receipt.finish(outcome)
 
     if cancellation_event is not None and capability_name in {"project_source", "multi_file_reasoning"}:
         arguments = {**(arguments or {}), "cancellation_event": cancellation_event}
@@ -858,13 +898,23 @@ def execute_registered_capability(
         if speak_result:
             from services.conversation_service import ResponseDelivery, capture_response_delivery
             from services.tts.outcome import PlaybackOutcome
-            receipt = ResponseDelivery()
+            from services.conversation_service import current_response_delivery
+            receipt = current_response_delivery() if scoped else ResponseDelivery()
             outcome = PlaybackOutcome.FAILED
             try:
                 with capture_response_delivery(receipt):
                     response = present_relationship_result(result, arguments or {}, cancellation_event)
                 check_cancelled(cancellation_event)
                 if response:
+                    if scoped:
+                        receipt.check_current()
+                        receipt.cancel_callback = stop_speaking
+                        if receipt.playback_guard is not None and not receipt.playback_guard():
+                            outcome = PlaybackOutcome.INTERRUPTED
+                            result.success = False
+                            result.error = "The caller answer is no longer current. Please repeat the question."
+                            result.data = {"status": "refused", "response": result.error}
+                            return result
                     outcome = speak(response)
             finally:
                 receipt.finish(outcome)
@@ -925,7 +975,14 @@ def present_relationship_result(result, arguments, cancellation_event=None):
     check_cancelled(cancellation_event)
     if not is_capability_available("multi_file_reasoning"):
         result.success, result.error, result.data = False, "Capability is currently disabled.", {}
-    result = validate_relationship_delivery(result, cancellation_event)
+    scoped = arguments.get("scoped_command") is not None
+    if scoped:
+        from services.scoped_relationship_delivery import validate_scoped_delivery
+        from services.conversation_service import current_response_delivery
+        result = validate_scoped_delivery(result, arguments, cancellation_event)
+        receipt = current_response_delivery()
+    else:
+        result = validate_relationship_delivery(result, cancellation_event)
     context = arguments.get("context")
     try:
         current = get_project()
@@ -933,8 +990,24 @@ def present_relationship_result(result, arguments, cancellation_event=None):
             raise ProjectAccessError("Project changed before delivery.")
     except ProjectAccessError:
         result.success, result.error, result.data = False, "The project context or authorization changed. Please repeat the question.", {}
-    response = format_capability_result(result)
+    response = (result.data.get("response") or result.error) if scoped else format_capability_result(result)
     check_cancelled(cancellation_event)
+    if scoped:
+        receipt.check_current(consumer=True)
+        if result.data.get("no_history"):
+            return relationship_speech(response)
+        with receipt.publication_window():
+            if arguments.get("question"):
+                add_message("user", arguments["question"], source="user")
+            receipt.check_current(consumer=True)
+            add_message("assistant", response, source="observed" if result.success else "router")
+            receipt.check_current(consumer=True)
+            if result.success and result.data.get("topic"):
+                clear_pending_request()
+                set_topic(result.data["topic"])
+            elif result.data.get("pending"):
+                set_pending_request(result.data["pending"])
+        return relationship_speech(response)
     if arguments.get("question"):
         add_message("user", arguments["question"], source="user")
     check_cancelled(cancellation_event)
@@ -1009,6 +1082,8 @@ def process(command, allow_interruption=True):
 def _process_once(command, allow_interruption=True):
     if not command:
         return
+    from services.conversation_service import supersede_guarded_delivery
+    supersede_guarded_delivery()
     original_command = command.strip()
     command = command.lower().strip()
     command = command.strip(".,!?")
@@ -1115,6 +1190,57 @@ def _process_once(command, allow_interruption=True):
         )
 
         return
+
+    # C3 owns explicit scopes/direct-only framing. Legacy unscoped callers and
+    # supported C2 traces retain their original complete-result path.
+    from services.scoped_relationship_request import parse_scoped_caller_request
+    from services.scoped_relationship_delivery import resolve_scoped_follow_up
+    from services.project_access import get_project
+    from services.code_intent import resolve_relationship_request
+    from models.project_scope import CompletenessClaim
+    scoped_command = original_command
+    scoped_intent = parse_scoped_caller_request(scoped_command)
+    scoped_pending = get_pending_request()
+    continuation = None
+    if scoped_intent is None:
+        continuation = resolve_scoped_follow_up(original_command, scoped_pending)
+        if continuation:
+            scoped_command = continuation
+            scoped_intent = parse_scoped_caller_request(scoped_command)
+        elif (isinstance(scoped_pending, dict) and scoped_pending.get("scoped_relationship")
+              and ("::" in original_command or original_command.startswith("./")
+                   or re.fullmatch(r"[\w.]+", original_command)
+                   or re.match(r"^(?:within\b|in (?:file|directory|folder)\b)", original_command, re.I))):
+            scoped_command = "Which functions directly call an exact target?"
+            scoped_intent = parse_scoped_caller_request(scoped_command)
+        else:
+            from services.conversation_manager import get_stale_source_topic
+            scoped_topic = get_topic() or get_stale_source_topic()
+            if scoped_topic and scoped_topic.get("scoped_relationship"):
+                if normalized_command in {"go one level deeper", "what calls those callers", "show caller chains"}:
+                    scoped_command = "Show caller chains of an exact target"
+                    scoped_intent = parse_scoped_caller_request(scoped_command)
+                elif normalized_command in {"what about its callers", "tell me more", "explain that", "explain it", "continue", "why"}:
+                    # A prior result never invents a new scope or authorizes reuse.
+                    scoped_command = "Which functions directly call an exact target?"
+                    scoped_intent = parse_scoped_caller_request(scoped_command)
+    explicit_direct = bool(re.search(r"\bdirectly\b|\b(?:show|list)(?: me)? (?:verified )?(?:direct )?callers of\b", original_command, re.I))
+    use_scoped = scoped_intent is not None and (
+        scoped_intent.direct and (continuation or scoped_command != original_command or scoped_intent.scope_kind is not None
+                                 or scoped_intent.error == "scope_type_required" or explicit_direct)
+        or not scoped_intent.direct and resolve_relationship_request(original_command) is None)
+    if use_scoped:
+        clear_pending_request()
+        context = scoped_pending["context"] if continuation else get_project()
+        claim = (scoped_pending["claim"] if continuation else
+                 CompletenessClaim.FINDINGS_ONLY if scoped_intent.findings_only else CompletenessClaim.SCOPED_COMPLETE)
+        arguments = {"context": context, "operation": "calls", "question": scoped_command,
+                     "scoped_command": scoped_command, "claim": claim}
+        arguments["question"] = original_command
+        if allow_interruption:
+            return process_streaming_conversation(original_command,
+                stream_factory=lambda event: stream_relationship_response(arguments, event))
+        return execute_registered_capability("multi_file_reasoning", arguments)
 
     # Explicit C2 grammar precedes broad C1 project search, after recall/management.
     from services.code_intent import resolve_relationship_request, relationship_target

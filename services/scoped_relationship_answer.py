@@ -233,7 +233,7 @@ def _render(intent, scope, candidate, outcome, request):
         raise _Refusal("answer_citation_or_payload_validation_failed")
     request.check_authorization()
     return ScopedCallerAnswerCandidate("findings_only" if outcome.claim == CompletenessClaim.FINDINGS_ONLY else "complete",
-        text, intent, scope, outcome, tuple(edges), tuple(references))
+        text, intent, scope, outcome, tuple(edges), tuple(references), analysis=candidate)
 
 
 def prepare_scoped_caller_answer(command, request, *, current_file=None, claim=CompletenessClaim.SCOPED_COMPLETE):

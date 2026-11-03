@@ -195,6 +195,8 @@ def get_historical_messages(*, cutoff, previous_session=False, start=None,
 def start_session():
 
     global current_session
+    from services.conversation_service import supersede_guarded_delivery
+    supersede_guarded_delivery()
 
     db = SessionLocal()
 
@@ -212,6 +214,8 @@ def start_session():
 def end_session():
 
     global current_session
+    from services.conversation_service import supersede_guarded_delivery
+    supersede_guarded_delivery()
 
     if current_session is None:
         return

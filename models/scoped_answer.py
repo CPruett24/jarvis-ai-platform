@@ -1,5 +1,9 @@
 """C3.5a internal request/answer contracts, deliberately not capability responses."""
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from services.scoped_relationship_analysis import ScopedCallerAnalysis
 
 from models.project_scope import AnalysisScope, ScopeKind, CompletenessClaim
 from models.project_relationships import RelationshipRecord
@@ -16,6 +20,7 @@ class ScopedCallerIntent:
     current_file: bool = False
     direct: bool = True
     error: str = ""
+    findings_only: bool = False
 
 
 @dataclass(frozen=True)
@@ -38,6 +43,7 @@ class ScopedCallerAnswerCandidate:
     references: tuple[CallerSourceReference, ...] = ()
     reasons: tuple[str, ...] = ()
     target_options: tuple[str, ...] = ()
+    analysis: "ScopedCallerAnalysis | None" = None
 
     def __post_init__(self):
         if self.status not in {"not_applicable", "clarification", "refused", "findings_only", "complete"}:

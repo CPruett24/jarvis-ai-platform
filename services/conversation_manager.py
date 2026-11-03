@@ -146,7 +146,7 @@ def get_topic() -> ConversationTopic | None:
 
 def get_stale_source_topic():
     """Retain a stale-topic signal so a follow-up cannot silently become chat."""
-    if _current_topic and _current_topic.get("source_grounded") and get_topic() is None:
+    if _current_topic and (_current_topic.get("source_grounded") or _current_topic.get("scoped_relationship")) and get_topic() is None:
         return _current_topic.copy()
     return None
 
