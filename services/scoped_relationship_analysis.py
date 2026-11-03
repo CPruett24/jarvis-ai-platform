@@ -35,6 +35,10 @@ class ScopedCallerAnalysis:
     fingerprints: tuple[SourceFingerprint, ...]
     diagnostics: tuple[str, ...]
     usage: BudgetUsage
+    # Full discovery membership is a proof dependency, not caller-search scope.
+    # Retain alternatives outside the scope so validation can detect additions.
+    source_inventory: tuple[str, ...] = ()
+    inventory_exclusions: tuple[tuple[str, str], ...] = ()
 
     @property
     def scope_id(self):
@@ -100,9 +104,11 @@ def analyze_scoped_callers(scope, request):
     target_status, target_candidates = "not_found", ()
     support_closed = False
     parsed = set()
+    source_inventory, inventory_exclusions = (), ()
 
-    def listing():
+    def listing(exclusions):
         return discover(request.context, analysis_request=request,
+                        exclusion_diagnostics=exclusions,
                         limits=replace(RetrievalLimits(), seconds=request.budget.limits.seconds))
 
     def check_active():
@@ -128,7 +134,10 @@ def analyze_scoped_callers(scope, request):
                 if not permitted(path):
                     failures[path] = "excluded_required_python"
         else:
-            found = listing()
+            exclusions = []
+            found = listing(exclusions)
+            source_inventory = tuple(sorted(p for p in found.paths if p.lower().endswith(".py")))
+            inventory_exclusions = tuple(sorted(exclusions))
             request.budget.check()  # includes cancellation returned by discovery
             discovery_complete = found.status == RetrievalStatus.SUCCESS
             if not discovery_complete:
@@ -230,11 +239,13 @@ def analyze_scoped_callers(scope, request):
                 request.budget.check()
                 if not read.success or not read.excerpts or read.excerpts[0].digest != excerpt.digest:
                     source_changed = True
-            second = listing()
+            exclusions = []
+            second = listing(exclusions)
             request.budget.check()
             if (second.status != RetrievalStatus.SUCCESS or
                     {p for p in second.paths if p.lower().endswith(".py")} !=
-                    {p for p in found.paths if p.lower().endswith(".py")}):
+                    {p for p in found.paths if p.lower().endswith(".py")}
+                    or tuple(sorted(exclusions)) != inventory_exclusions):
                 # A new module/package alternative outside caller scope can
                 # invalidate a binding just as a new caller can change coverage.
                 source_changed = True
@@ -292,4 +303,4 @@ def analyze_scoped_callers(scope, request):
             extraction_truncated=True), resolution=Resolution.INCOMPLETE)
     return ScopedCallerAnalysis(result, target_status, target_candidates,
         tuple(SourceFingerprint(p, e.digest) for p, e in sorted(excerpts.items())),
-        tuple(sorted(diagnostics)), request.budget.usage)
+        tuple(sorted(diagnostics)), request.budget.usage, source_inventory, inventory_exclusions)
