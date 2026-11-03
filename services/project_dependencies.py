@@ -33,7 +33,7 @@ class ImportRelationshipRecord(RelationshipRecord):
     lexical_scope: str
 
 
-def resolve_source_import(observation, modules, inventory, *, inventory_complete=True):
+def resolve_source_import(observation, modules, inventory, *, inventory_complete=True, require_all_candidates=False):
     """Resolve only inventory-backed modules and directly defined members.
 
     No runtime imports, installed-package lookup or re-export execution. Return
@@ -55,6 +55,10 @@ def resolve_source_import(observation, modules, inventory, *, inventory_complete
         stem = (name or "").replace(".", "/")
         paths = [p for p in (stem + ".py", stem + "/__init__.py") if p in inventory]
         available = [modules[p] for p in paths if p in modules]
+        if require_all_candidates and any(p not in modules for p in paths):
+            # C3 subset analysis cannot disambiguate a module/package by failing
+            # to read the other inventory-backed candidate. C2 keeps its default.
+            available = []
         if not available:
             reason = "module_not_analyzed" if paths else "module_not_in_authorized_inventory"
         elif member is None:
@@ -72,9 +76,16 @@ def resolve_source_import(observation, modules, inventory, *, inventory_complete
                     SymbolKind.FUNCTION, SymbolKind.ASYNC_FUNCTION, SymbolKind.CLASS}]
                 if not candidates:
                     child = stem + "/" + member
+                    child_paths = [p for p in (child + ".py", child + "/__init__.py") if p in inventory]
                     candidates = [modules[p].scopes[0] for p in (child + ".py", child + "/__init__.py")
                                   if p in modules]
                     reason = "imported_member_not_defined" if not candidates else "project_submodule_import"
+                    if require_all_candidates and any(p not in modules for p in child_paths):
+                        candidates, reason = [], "module_not_analyzed"
+        if require_all_candidates and len(paths) > 1 and all(p in modules for p in paths):
+            # Even two parsed alternatives cannot be narrowed by which one
+            # happens to define the requested member. No runtime import proof.
+            candidates, reason = [], "ambiguous_module_path"
     target = candidates[0] if len(candidates) == 1 else None
     resolution = Resolution.CONFIRMED_STATIC if target else (
         Resolution.AMBIGUOUS if len(candidates) > 1 else Resolution.UNRESOLVED)

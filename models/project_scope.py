@@ -190,10 +190,12 @@ class ScopedCoverage:
     extraction_truncated: bool = False
     limitations: tuple[FileDiagnostic, ...] = ()
     non_python_files: tuple[str, ...] = ()
+    source_changed: bool = False
 
     def __post_init__(self):
         if (not isinstance(self.scope, AnalysisScope) or not isinstance(self.status, CoverageStatus)
-                or type(self.inventory_complete) is not bool or type(self.extraction_truncated) is not bool):
+                or type(self.inventory_complete) is not bool or type(self.extraction_truncated) is not bool
+                or type(self.source_changed) is not bool):
             raise ValueError("Coverage requires typed scope/status and explicit flags.")
         inventory = _paths(self, "inventory_files", python=True)
         parsed = _paths(self, "parsed_files", python=True)
@@ -211,7 +213,7 @@ class ScopedCoverage:
             raise ValueError("Required Python failures need visible, scope-bound classifications.")
         if set(parsed) & {diagnostic.path for diagnostic in limits}:
             raise ValueError("A Python input cannot be both parsed and failed.")
-        complete = (self.inventory_complete and not self.extraction_truncated and not limits
+        complete = (self.inventory_complete and not self.extraction_truncated and not self.source_changed and not limits
                     and self.scope.support.complete
                     and set(inventory) == set(parsed) == set(self.scope.search_files))
         if ((self.status == CoverageStatus.COMPLETE and not complete)
