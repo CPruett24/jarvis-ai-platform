@@ -1,4 +1,5 @@
 from services.cancellation import OperationCancelled, check_cancelled
+from dataclasses import dataclass
 from services.ai_service import (
     ask_ai,
     detect_tool,
@@ -466,6 +467,15 @@ def _stream_with_interrupt(
         if isinstance(item, Exception):
             raise item
 
+        if isinstance(item, _RelationshipDelivery):
+            try:
+                item = present_relationship_result(item.result, item.arguments, cancellation_event)
+            except OperationCancelled:
+                if cancellation_event.is_set():
+                    return
+                raise
+            if cancellation_event.is_set():
+                return
         yield item
 
 INTERRUPTION_PREFIX = "__JARVIS_INTERRUPTION__:"
@@ -815,7 +825,7 @@ def execute_registered_capability(
     assistant statement.
     """
 
-    if cancellation_event is not None and capability_name == "project_source":
+    if cancellation_event is not None and capability_name in {"project_source", "multi_file_reasoning"}:
         arguments = {**(arguments or {}), "cancellation_event": cancellation_event}
     if arguments is None:
 
@@ -831,6 +841,23 @@ def execute_registered_capability(
         )
 
     check_cancelled(cancellation_event)
+    if capability_name == "multi_file_reasoning":
+        if speak_result:
+            from services.conversation_service import ResponseDelivery, capture_response_delivery
+            from services.tts.outcome import PlaybackOutcome
+            receipt = ResponseDelivery()
+            outcome = PlaybackOutcome.FAILED
+            try:
+                with capture_response_delivery(receipt):
+                    response = present_relationship_result(result, arguments or {}, cancellation_event)
+                check_cancelled(cancellation_event)
+                if response:
+                    outcome = speak(response)
+            finally:
+                receipt.finish(outcome)
+        else:
+            present_relationship_result(result, arguments or {}, cancellation_event)
+        return result
     if result.success:
 
         observations = get_observed_information(
@@ -870,6 +897,57 @@ def execute_registered_capability(
         speak(response)
 
     return result
+
+
+@dataclass(frozen=True)
+class _RelationshipDelivery:
+    result: object
+    arguments: dict
+
+
+def present_relationship_result(result, arguments, cancellation_event=None):
+    """Consumer-only C2 effects: producer completion alone never publishes a turn."""
+    from services.project_relationship_capability import validate_relationship_delivery, relationship_speech
+    from services.project_access import get_project, ProjectAccessError
+    check_cancelled(cancellation_event)
+    if not is_capability_available("multi_file_reasoning"):
+        result.success, result.error, result.data = False, "Capability is currently disabled.", {}
+    result = validate_relationship_delivery(result, cancellation_event)
+    context = arguments.get("context")
+    try:
+        current = get_project()
+        if context != current:
+            raise ProjectAccessError("Project changed before delivery.")
+    except ProjectAccessError:
+        result.success, result.error, result.data = False, "The project context or authorization changed. Please repeat the question.", {}
+    response = format_capability_result(result)
+    check_cancelled(cancellation_event)
+    if arguments.get("question"):
+        add_message("user", arguments["question"], source="user")
+    check_cancelled(cancellation_event)
+    if result.success:
+        observations = get_observed_information(result)
+        if observations:
+            add_message("assistant", format_information_context(observations), source="observed")
+    check_cancelled(cancellation_event)
+    add_message("assistant", response, source="observed" if result.success else "router")
+    check_cancelled(cancellation_event)
+    if result.success and result.data.get("topic"):
+        clear_pending_request()
+        set_topic(result.data["topic"])
+    elif result.data.get("pending"):
+        set_pending_request(result.data["pending"])
+    if result.data.get("candidates"):
+        return "The target is ambiguous. Please specify a project-relative file and qualified symbol name."
+    return relationship_speech(response)
+
+
+def stream_relationship_response(arguments, cancellation_event):
+    """Use the existing bounded queue; all publication effects stay on its consumer."""
+    check_cancelled(cancellation_event)
+    result = execute_capability("multi_file_reasoning", {**arguments, "cancellation_event": cancellation_event})
+    check_cancelled(cancellation_event)
+    yield _RelationshipDelivery(result, arguments)
 
 
 def stream_source_response(arguments, cancellation_event):
@@ -918,6 +996,7 @@ def process(command, allow_interruption=True):
 def _process_once(command, allow_interruption=True):
     if not command:
         return
+    original_command = command.strip()
     command = command.lower().strip()
     command = command.strip(".,!?")
 
@@ -1023,6 +1102,41 @@ def _process_once(command, allow_interruption=True):
         )
 
         return
+
+    # Explicit C2 grammar precedes broad C1 project search, after recall/management.
+    from services.code_intent import resolve_relationship_request, relationship_target
+    from services.conversation_manager import resolve_relationship_follow_up
+    from services.project_access import get_project, ProjectAccessError
+    relationship_request = resolve_relationship_request(original_command)
+    if relationship_request is None:
+        relationship_request = resolve_relationship_follow_up(original_command)
+    pending = get_pending_request()
+    if relationship_request is None and isinstance(pending, dict) and pending.get("relationship_grounded"):
+        candidate = original_command.strip().strip("`\"'")
+        if candidate in pending["candidates"]:
+            try:
+                current = get_project()
+                if current.project_id != pending["project_id"] or current.revision != pending["authorization_revision"]:
+                    raise ProjectAccessError("Stale clarification")
+                relationship_request = {key: pending[key] for key in (
+                    "operation", "direction", "depth", "comparison") if key in pending}
+                relationship_request.update(relationship_target(candidate))
+            except ProjectAccessError:
+                relationship_request = {"stale_context": True}
+    if relationship_request is not None:
+        clear_pending_request()
+        try:
+            if relationship_request.pop("stale_context", False):
+                raise ProjectAccessError("Stale relationship topic")
+            relationship_request.update(context=get_project(), question=original_command)
+        except ProjectAccessError:
+            response = "The project context or authorization changed. Please repeat the project question."
+            speak(response)
+            return response
+        if allow_interruption:
+            return process_streaming_conversation(original_command,
+                stream_factory=lambda event: stream_relationship_response(relationship_request, event))
+        return execute_registered_capability("multi_file_reasoning", relationship_request)
 
     # C1 resolves project-source requests before generic explanations/agents.
     # Archive recall and capability management retain precedence above.

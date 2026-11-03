@@ -138,3 +138,16 @@ def get_analysis_cache_info():
         "file_content": get_cached_file_content.cache_info(),
         "source_tree": get_cached_source_tree.cache_info(),
     }
+
+
+def read_analysis_source(request, relative_path):
+    """Full, provenance-preserving C2 read; no implicit active-project cache.
+
+    AST caching is deliberately deferred: every operation charges actual reads
+    and parses against its own budget rather than reusing unqualified AST state.
+    """
+    request.check_authorization()
+    return read_source(relative_path, request.context, limits=replace(RetrievalLimits(),
+        max_file_bytes=request.budget.limits.file_bytes, max_lines=1000000,
+        max_evidence_bytes=request.budget.limits.file_bytes,
+        seconds=request.budget.limits.seconds), analysis_request=request)

@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from services.cancellation import OperationCancelled
 
 from services.capability_registry import get_capability
 from services.capability_state import (
@@ -172,6 +173,8 @@ def execute_capability(
             data=data,
         )
 
+    except OperationCancelled:
+        raise
     except Exception as exc:
 
         return CapabilityExecutionResult(

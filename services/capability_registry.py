@@ -205,8 +205,8 @@ CAPABILITY_REGISTRY = {
         name="Multi-File Understanding",
         description="Reason across multiple source files and trace relationships between them.",
         category="development",
-        available=False,
-        reason="Multi-file reasoning is a future development capability.",
+        available=True,
+        tool_name="project_relationships",
     ),
 
     "planning": Capability(

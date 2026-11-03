@@ -3,6 +3,150 @@ import builtins
 import inspect
 from pathlib import Path
 
+from models.project_relationships import RelationshipKind, RelationshipRecord, Resolution, SymbolKind
+
+
+def resolve_source_calls(source, modules, import_bindings, request, *, tainted_paths=()):
+    """Resolve C2 observations against extracted lexical definitions only.
+
+    This is binding resolution, not a proof that a call executes. Receiver type
+    inference, re-exports, inheritance and runtime binding changes are unsupported.
+    """
+    from services.project_dependencies import ImportObservation
+
+    def lookup(scope, name):
+        current = scope
+        while current is not None:
+            if name in current.blocked or current.wildcard:
+                return [], "shadowed_reassigned_or_wildcard_binding", []
+            bindings = current.bindings.get(name, [])
+            if bindings:
+                targets, supporting = [], []
+                for binding in bindings:
+                    if isinstance(binding, ImportObservation):
+                        edge, target = import_bindings[id(binding)]
+                        supporting.append(edge.location)
+                        if target:
+                            targets.append(target)
+                        elif edge.resolution == Resolution.AMBIGUOUS:
+                            for candidate in edge.candidates:
+                                targets.extend(s for m in modules.values() for s in m.scopes
+                                               if s.symbol == candidate)
+                        else:
+                            return [], edge.reason, supporting
+                    else:
+                        if binding.conditional:
+                            return [], "conditional_definition", supporting
+                        targets.append(binding)
+                return targets, "lexical_or_imported_binding", supporting
+            current = current.parent
+            # Class namespaces do not form closures for methods/nested functions.
+            while current is not None and current.symbol.kind == SymbolKind.CLASS:
+                current = current.parent
+        return [], "name_not_statically_bound", []
+
+    def attribute(target, parts):
+        owner = modules[target.symbol.definition.path]
+        if target.symbol.kind == SymbolKind.MODULE:
+            scopes = owner.scopes[0].bindings.get(parts[0], [])
+            if any(isinstance(s, ImportObservation) for s in scopes):
+                return [], "reexport_unsupported"
+            if parts[0] in owner.scopes[0].blocked or owner.scopes[0].wildcard:
+                return [], "reassigned_module_member"
+            next_targets = scopes
+        elif target.symbol.kind == SymbolKind.CLASS:
+            next_targets = target.bindings.get(parts[0], [])
+            if (parts[0] in target.blocked or target.node.decorator_list
+                    or target.node.bases or target.node.keywords):
+                return [], "reassigned_decorated_or_dynamic_class"
+            if any(isinstance(s, ImportObservation) for s in next_targets):
+                return [], "class_import_binding_unsupported"
+        else:
+            return [], "arbitrary_receiver_dispatch"
+        if not next_targets:
+            return [], "attribute_not_directly_defined_inheritance_unsupported"
+        if any(s.conditional for s in next_targets):
+            return [], "conditional_definition"
+        if len(parts) == 1:
+            return next_targets, "explicit_attribute_binding"
+        found = []
+        for candidate in next_targets:
+            targets, reason = attribute(candidate, parts[1:])
+            if not targets:
+                return [], reason
+            found.extend(targets)
+        return found, "explicit_attribute_binding"
+
+    for scope, node, dynamic_scope in source.calls:
+        request.budget.check()
+        expression = source.expression(node.func)
+        parts, value = [], node.func
+        while isinstance(value, ast.Attribute):
+            parts.insert(0, value.attr)
+            value = value.value
+        targets, reason, supporting = [], "dynamic_callee_expression", []
+        if isinstance(value, ast.Name):
+            targets, reason, supporting = lookup(scope, value.id)
+            if value.id in source.mutations:
+                targets, reason = [], "monkey_patched_receiver"
+            # `import pkg.module` binds pkg, whereas an alias binds pkg.module.
+            if parts and targets:
+                current = scope
+                binding = None
+                while current is not None and binding is None:
+                    matches = current.bindings.get(value.id, [])
+                    if len(matches) == 1 and isinstance(matches[0], ImportObservation):
+                        binding = matches[0]
+                    current = current.parent
+                if binding is not None and isinstance(binding.node, ast.Import) and not binding.alias_node.asname:
+                    prefix = binding.alias_node.name.split(".")[1:]
+                    if parts[:len(prefix)] != prefix:
+                        targets, reason = [], "module_prefix_not_supported"
+                    else:
+                        parts = parts[len(prefix):]
+                resolved = []
+                failed_receiver = False
+                for target in targets:
+                    found, reason = attribute(target, parts) if parts else ([target], reason)
+                    failed_receiver = failed_receiver or not found
+                    resolved.extend(found)
+                targets = [] if failed_receiver else resolved
+                if failed_receiver and len(resolved):
+                    reason = "ambiguous_or_unsupported_receiver_binding"
+        if dynamic_scope:
+            targets, reason = [], "lambda_or_comprehension_scope_unsupported"
+        unique = {target.symbol.symbol_id: target for target in targets}
+        targets = list(unique.values())
+        if len(targets) == 1:
+            target = targets[0]
+            owner = modules[target.symbol.definition.path]
+            decorators = getattr(target.node, "decorator_list", [])
+            if target.symbol.kind == SymbolKind.METHOD:
+                static = (len(decorators) == 1 and isinstance(decorators[0], ast.Name)
+                          and decorators[0].id in {"staticmethod", "classmethod"}
+                          and decorators[0].id not in owner.scopes[0].bindings
+                          and decorators[0].id not in owner.scopes[0].blocked
+                          and target.parent is not None
+                          and decorators[0].id not in target.parent.bindings
+                          and decorators[0].id not in target.parent.blocked)
+                if not parts or not static:
+                    targets, reason = [], "instance_method_dispatch_unsupported"
+            elif target.symbol.kind not in {SymbolKind.FUNCTION, SymbolKind.ASYNC_FUNCTION}:
+                targets, reason = [], "target_is_not_a_supported_function"
+            elif decorators:
+                targets, reason = [], "decorated_function_binding_unsupported"
+            if (target.conditional or target.symbol.qualified_name.split(".")[0] in owner.mutations
+                    or target.symbol.definition.path in tainted_paths):
+                targets, reason = [], "conditional_or_mutated_target"
+        resolution = (Resolution.INCOMPLETE if reason in {"incomplete_inventory", "module_not_analyzed"} else
+                      Resolution.CONFIRMED_STATIC if len(targets) == 1 else
+                      Resolution.AMBIGUOUS if len(targets) > 1 else Resolution.UNRESOLVED)
+        request.budget.consume(relationships=1)
+        yield RelationshipRecord(RelationshipKind.CALLS, scope.symbol,
+            targets[0].symbol if resolution == Resolution.CONFIRMED_STATIC else None,
+            expression, source.location(node), resolution, reason,
+            tuple(t.symbol for t in targets) if resolution == Resolution.AMBIGUOUS else (), tuple(supporting))
+
 from services.project_analysis_cache import (
     get_source_tree,
     get_file_content,

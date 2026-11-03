@@ -1,6 +1,117 @@
 from pathlib import Path
 from functools import lru_cache
 
+
+def analyze_project_relationships(request):
+    """Context-aware C2 extraction, separate from the guarded legacy adapter.
+
+    One inventory, safe reads only, no runtime imports of project source. Partial
+    and cancelled operations retain typed coverage and already completed records.
+    This does not publish a capability response or construct a traversal/impact graph.
+    """
+    import ast
+    from dataclasses import replace
+    from models.project_relationships import (AnalysisCoverage, AnalysisSnapshot, AnalysisResult,
+                                             FileDiagnostic, SourceFingerprint)
+    from models.source_evidence import RetrievalLimits, RetrievalStatus
+    from services.project_analysis_request import AnalysisBudgetExceeded
+    from services.project_analysis_cache import read_analysis_source
+    from services.project_symbol_index import extract_scoped_symbols
+    from services.project_dependencies import resolve_source_import
+    from services.project_execution import resolve_source_calls
+    from services.project_retrieval import discover
+    from services.project_access import validate_project, get_project, ProjectAccessError
+    from services.cancellation import OperationCancelled
+
+    request.check_authorization()
+    identity = request.identity
+    modules, fingerprints, parsed, skipped, failures, unsupported = {}, [], [], [], [], []
+    paths, edges, bindings, exhaustion = [], [], {}, []
+    exclusions = []
+    cancelled, complete_discovery, entries = False, False, 0
+    try:
+        listing = discover(request.context, analysis_request=request, exclusion_diagnostics=exclusions,
+                           limits=replace(RetrievalLimits(), seconds=request.budget.limits.seconds))
+        entries = listing.entries_visited
+        paths = list(listing.paths)
+        complete_discovery = listing.status == RetrievalStatus.SUCCESS
+        exhaustion.extend(listing.limits_reached)
+        if listing.status == RetrievalStatus.CANCELLED:
+            raise OperationCancelled()
+        if not listing.success:
+            exhaustion.append(listing.error or listing.status.value)
+        for path in paths:
+            request.check_authorization()
+            if not path.lower().endswith(".py"):
+                unsupported.append(FileDiagnostic(path, "unsupported_source_language"))
+                continue
+            # Refuse to read another source when no parse slot remains.
+            if dict(request.budget.usage.consumed)["python_files"] >= request.budget.limits.python_files:
+                request.budget.consume(python_files=1)
+            read = read_analysis_source(request, path)
+            if read.status == RetrievalStatus.CANCELLED:
+                raise OperationCancelled()
+            if not read.success or not read.excerpts or read.excerpts[0].truncated:
+                skipped.append(FileDiagnostic(path, read.error or ",".join(read.limits_reached) or read.status.value))
+                exhaustion.extend(read.limits_reached)
+                if any(reason.startswith("analysis:") for reason in read.limits_reached):
+                    break
+                continue
+            excerpt = read.excerpts[0]
+            fingerprints.append(SourceFingerprint(path, excerpt.digest))
+            request.budget.consume(python_files=1)
+            try:
+                tree = ast.parse(excerpt.text, filename=path)
+                count = 0
+                for _ in ast.walk(tree):
+                    count += 1
+                    request.budget.consume(ast_nodes=1)
+                    request.budget.check_file(read.bytes_read, count)
+                module = extract_scoped_symbols(tree, excerpt, request)
+            except (SyntaxError, RecursionError, ValueError) as exc:
+                failures.append(FileDiagnostic(path, f"{type(exc).__name__}: {exc}"))
+                continue
+            modules[path] = module
+            parsed.append(path)
+        # Resolve only after the bounded parse pass so forward imports work.
+        for module in modules.values():
+            for observation in module.imports:
+                request.budget.check()
+                edge, target = resolve_source_import(observation, modules, set(paths),
+                                                     inventory_complete=complete_discovery)
+                request.budget.consume(relationships=1)
+                bindings[id(observation)] = (edge, target)
+                edges.append(edge)
+        tainted = {target.symbol.definition.path for module in modules.values() for observation in module.imports
+                   for _, target in [bindings[id(observation)]]
+                   if target is not None and observation.bound_name in module.mutations}
+        for module in modules.values():
+            edges.extend(resolve_source_calls(module, modules, bindings, request, tainted_paths=tainted))
+        request.budget.check()
+    except OperationCancelled:
+        cancelled = True
+    except AnalysisBudgetExceeded as exc:
+        exhaustion.append(exc.resource)
+    # Budget checks can intentionally fail here, but authorization may never be
+    # bypassed even when returning diagnostic-only partial/cancelled work.
+    validate_project(request.context)
+    if request.context != get_project():
+        raise ProjectAccessError("Active project changed during analysis.")
+    exhaustion.extend(request.budget.usage.exhausted)
+    accounted = set(parsed) | {d.path for d in skipped + failures + unsupported}
+    skipped.extend(FileDiagnostic(path, "analysis_stopped_before_parse") for path in paths if path not in accounted)
+    coverage = AnalysisCoverage(tuple(sorted(paths + [p for p, _ in exclusions])), tuple(parsed),
+        excluded=tuple(FileDiagnostic(p, reason) for p, reason in exclusions),
+        skipped=tuple(skipped), parse_failures=tuple(failures),
+        unsupported=tuple(unsupported), budget_exhausted=tuple(sorted(set(exhaustion))),
+        cancelled=cancelled, discovery_complete=complete_discovery)
+    usage = request.budget.usage
+    options = (("language", "python"), ("discovery_entries", str(entries))) + tuple(
+        ("consumed_" + name, str(value)) for name, value in usage.consumed)
+    snapshot = AnalysisSnapshot(identity, coverage, tuple(fingerprints), options, schema_version="c2.2")
+    return AnalysisResult(snapshot, tuple(scope.symbol for module in modules.values() for scope in module.scopes),
+                          tuple(edges))
+
 from services.project_service import _project_files
 from services.project_analysis_cache import get_source_tree
 from services.project_execution import (

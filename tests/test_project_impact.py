@@ -289,7 +289,9 @@ def test_impact_analysis_refreshes_project_state(monkeypatch):
     )
 
     router.process(
-        "what would be affected if I change execute_tool"
+        # Explicit "what would be affected" requests now use canonical C2.
+        # Keep this regression on the remaining legacy impact command.
+        "what would break if I change execute_tool"
     )
 
     assert calls == [True]

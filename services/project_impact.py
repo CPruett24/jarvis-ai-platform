@@ -6,6 +6,65 @@ from services.project_analysis_index import (
 from services.project_target import resolve_impact_target
 
 
+def _potential_impact(traversal, request):
+    from models.project_graph import ImpactConnection, PotentialImpact
+    from services.project_graph import _validate_analysis_owner
+    affected = {}
+    for step in traversal.steps:
+        request.budget.check()
+        if step.node_id in traversal.root_ids or step.classification in {"cycle", "node_cutoff", "edge_cutoff"}:
+            continue
+        candidate = ImpactConnection(step.node_id, step.path[0], step.relationship_path)
+        previous = affected.get(step.node_id)
+        if previous is None or (len(candidate.relationship_path), candidate.relationship_path) < (
+                len(previous.relationship_path), previous.relationship_path):
+            affected[step.node_id] = candidate
+    result = PotentialImpact(traversal, tuple(affected[key] for key in sorted(affected)))
+    _validate_analysis_owner(traversal.graph.analysis, request)
+    return result
+
+
+def potential_function_impact(analysis, request, *, symbol_id=None, filename=None, qualified_name=None, max_depth=None):
+    """Confirmed reverse-call connections, never predictions of runtime breakage.
+
+    Cancellation/deadline failure during final assembly propagates as a safe
+    failure; no successful impact result is returned after that checkpoint.
+    """
+    from models.project_relationships import RelationshipKind, SymbolKind
+    from services.project_graph import build_relationship_graph, traverse_relationships
+    graph = build_relationship_graph(analysis, request, RelationshipKind.CALLS)
+    traversal = traverse_relationships(graph, request, symbol_id=symbol_id, filename=filename,
+                                       qualified_name=qualified_name, direction="reverse", max_depth=max_depth)
+    if traversal.status == "resolved":
+        kinds = {s.symbol_id: s.kind for s in analysis.symbols}
+        if any(kinds[root] not in {SymbolKind.FUNCTION, SymbolKind.ASYNC_FUNCTION, SymbolKind.METHOD}
+               for root in traversal.root_ids):
+            raise ValueError("Function impact requires a function/method target.")
+    return _potential_impact(traversal, request)
+
+
+def potential_file_impact(analysis, request, filename, *, kind, max_depth=None):
+    """Separate reverse imports from reverse calls; assembly cancellation/timeouts raise."""
+    from models.project_graph import GraphTraversal
+    from models.project_relationships import RelationshipKind
+    from services.project_graph import build_relationship_graph, _traverse_roots
+    from services.project_target import resolve_analysis_target
+    graph = build_relationship_graph(analysis, request, kind)
+    selected = resolve_analysis_target(analysis, filename=filename)
+    if selected["status"] != "resolved":
+        return _potential_impact(GraphTraversal(graph, "reverse", selected["status"],
+            candidates=tuple(s.symbol_id for s in selected["candidates"])), request)
+    root_id = selected["target"].symbol_id
+    if kind == RelationshipKind.IMPORTS:
+        traversal = _traverse_roots(graph, request, (root_id,), direction="reverse", max_depth=max_depth)
+    else:
+        modules = {s.symbol_id: s.definition.path for s in analysis.symbols}
+        path = modules[root_id]
+        roots = tuple(s.symbol_id for s in analysis.symbols if s.definition.path == path)
+        traversal = _traverse_roots(graph, request, roots, direction="reverse", max_depth=max_depth)
+    return _potential_impact(traversal, request)
+
+
 def analyze_function_impact(
     filename,
     function_name,

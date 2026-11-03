@@ -151,6 +151,27 @@ def get_stale_source_topic():
     return None
 
 
+def resolve_relationship_follow_up(command):
+    """A topic supplies intent, never authorization or a reusable analysis result."""
+    text = command.lower().strip().rstrip(".!?")
+    followups = {"go one level deeper", "go deeper", "what about its callers",
+                 "which files could be affected", "tell me more"}
+    if text not in followups or not _current_topic or not _current_topic.get("relationship_grounded"):
+        return None
+    topic = get_topic()
+    if topic is None:
+        return {"stale_context": True}
+    fields = ("operation", "filename", "qualified_name", "direction", "depth", "comparison")
+    request = {key: topic[key] for key in fields if key in topic}
+    if text in {"go one level deeper", "go deeper", "tell me more"}:
+        request["depth"] += 1
+    elif text == "what about its callers":
+        request.update(operation="calls", direction="reverse")
+    else:
+        request.update(operation="impact", direction="reverse")
+    return request
+
+
 def clear_topic():
 
     global _current_topic, _discussion_kind

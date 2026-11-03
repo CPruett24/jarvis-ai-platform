@@ -10,6 +10,32 @@ from services.project_service import (
 
 import re
 
+
+def resolve_analysis_target(analysis, filename=None, qualified_name=None):
+    """Case-preserving C2 lookup; never choose the first duplicate basename.
+
+    Pure adapter over a captured result. Authorization/freshness must be checked
+    by its request owner before any future presentation.
+    """
+    from models.project_relationships import SymbolKind
+    candidates = list(analysis.symbols)
+    if filename is not None:
+        path = filename.replace("\\", "/")
+        exact_path = path.startswith("./")
+        if exact_path:
+            path = path[2:]
+        if path.startswith("/") or ":" in path or ".." in path.split("/"):
+            return {"status": "not_found", "candidates": ()}
+        candidates = [s for s in candidates if (s.definition.path == path if exact_path or "/" in path
+                      else s.definition.path.rsplit("/", 1)[-1] == path)]
+    if qualified_name is not None:
+        candidates = [s for s in candidates if s.qualified_name == qualified_name]
+    else:
+        candidates = [s for s in candidates if s.kind == SymbolKind.MODULE]
+    ordered = tuple(sorted(candidates, key=lambda s: (s.definition.path, s.qualified_name, s.definition.start_line)))
+    return {"status": "resolved" if len(ordered) == 1 else "ambiguous" if ordered else "not_found",
+            "target": ordered[0] if len(ordered) == 1 else None, "candidates": ordered}
+
 TARGET_PATTERNS = [
     r"\bif i change\s+(.+?)(?:\?|$)",
     r"\bif i modify\s+(.+?)(?:\?|$)",

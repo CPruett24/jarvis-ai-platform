@@ -23,8 +23,13 @@ from commands.actions import (
     explain_file_action,
 )
 from services.source_answer import source_capability, summarize_source_capability, explain_source_capability
+from services.project_relationship_capability import relationship_capability
 
 COMMAND_REGISTRY = {
+    "project_relationships": {
+        "function": relationship_capability,
+        "description": "Read-only authorized, bounded, source-validated Python relationships.",
+    },
     "project_source": {
         "function": source_capability,
         "description": "Read authorized project source and answer with validated evidence references.",

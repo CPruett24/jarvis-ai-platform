@@ -1,6 +1,43 @@
 import re
 
 
+def relationship_target(text):
+    """Syntax only; exact identities are resolved by canonical analysis later."""
+    text = text.strip().strip("`\"'")
+    if "::" in text:
+        filename, qualified_name = text.split("::", 1)
+        return {"filename": filename, "qualified_name": qualified_name}
+    return {"filename": text} if text.endswith(".py") else {"qualified_name": text}
+
+
+def resolve_relationship_request(command):
+    """Explicit relationship grammar; case-insensitive verbs, case-preserved targets."""
+    text = command.strip().rstrip(".!?")
+    patterns = (
+        (r"(?:what|who) calls (.+)", "calls", "reverse"),
+        (r"(?:what|which functions) does (.+) call", "calls", "forward"),
+        (r"(?:what|which files) (?:depends? on|imports?) (.+)", "imports", "reverse"),
+        (r"what does (.+) (?:import|depend on)", "imports", "forward"),
+        (r"(?:import )?dependencies of (.+)", "imports", "forward"),
+        (r"what (?:could|would) be affected if i (?:change|modify) (.+)", "impact", "reverse"),
+        (r"(?:potential )?impact of (?:changing )?(.+)", "impact", "reverse"),
+    )
+    for pattern, operation, direction in patterns:
+        match = re.fullmatch(pattern, text, re.I)
+        if match:
+            return {"operation": operation, "direction": direction, "depth": 2,
+                    **relationship_target(match[1])}
+    match = re.fullmatch(r"trace (.+?)(?: (forward|reverse))?(?: (?:to |for )?(\d+) levels?)?", text, re.I)
+    if match:
+        return {"operation": "trace", "direction": (match[2] or "forward").lower(),
+                "depth": int(match[3]) if match[3] else 2, **relationship_target(match[1])}
+    match = re.fullmatch(r"how do (.+?) and (.+?) connect", text, re.I)
+    if match:
+        return {"operation": "connections", "direction": "forward", "depth": 2,
+                "comparison": relationship_target(match[2]), **relationship_target(match[1])}
+    return None
+
+
 def is_conversation_summary_phrase(command):
     """Conversation phrases (including truncated speech) aren't filenames.
 

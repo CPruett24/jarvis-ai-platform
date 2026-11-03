@@ -10,6 +10,7 @@ import time
 from models.source_evidence import RetrievalLimits, RetrievalResult, RetrievalStatus, SourceExcerpt
 from services.project_access import get_project, validate_project, resolve_project_path, ProjectAccessError
 from services.cancellation import check_cancelled, OperationCancelled
+from services.project_analysis_request import AnalysisBudgetExceeded
 
 EXCLUDED_DIRECTORIES = frozenset({
     ".git", ".hg", ".svn", ".venv", "venv", "__pycache__", ".pytest_cache",
@@ -40,14 +41,17 @@ class BudgetExceeded(Exception):
 
 
 class Budget:
-    def __init__(self, limits, cancellation_event=None):
+    def __init__(self, limits, cancellation_event=None, analysis_request=None):
         self.limits = limits
         self.event = cancellation_event
         self.deadline = time.monotonic() + limits.seconds
         self.entries = 0
         self.bytes = 0
+        self.analysis_request = analysis_request
 
     def check(self):
+        if self.analysis_request is not None:
+            self.analysis_request.budget.check()
         check_cancelled(self.event)
         if time.monotonic() >= self.deadline:
             raise BudgetExceeded("time")
@@ -111,11 +115,16 @@ def locked_path(path, directory=False):
             close(handle)
 
 
-def discover(context=None, *, recursive=True, limits=None, cancellation_event=None):
+def discover(context=None, *, recursive=True, limits=None, cancellation_event=None, analysis_request=None,
+             exclusion_diagnostics=None):
     context = context or get_project()
     limits = limits or RetrievalLimits()
     result = RetrievalResult(context.project_id, context.revision, "discover", RetrievalStatus.SUCCESS)
-    budget = Budget(limits, cancellation_event)
+    budget = Budget(limits, cancellation_event, analysis_request)
+    if analysis_request is not None:
+        analysis_request.check_authorization()
+        if context != analysis_request.context:
+            raise ProjectAccessError("Analysis context mismatch.")
     try:
         validate_project(context)
         pending = [context.root]
@@ -132,19 +141,29 @@ def discover(context=None, *, recursive=True, limits=None, cancellation_event=No
                             raise BudgetExceeded("entries")
                         relative = Path(entry.path).relative_to(context.root)
                         if entry.name.startswith(".") or entry.name.lower() in EXCLUDED_DIRECTORIES:
+                            if exclusion_diagnostics is not None:
+                                exclusion_diagnostics.append((relative.as_posix(), "source_policy_exclusion"))
                             continue
                         info = entry.stat(follow_symlinks=False)
                         if stat.S_ISLNK(info.st_mode) or getattr(info, "st_file_attributes", 0) & 0x400:
+                            if exclusion_diagnostics is not None:
+                                exclusion_diagnostics.append((relative.as_posix(), "link_or_reparse_exclusion"))
                             continue
                         if entry.is_dir(follow_symlinks=False):
                             if recursive:
                                 children.append(Path(entry.path))
                             else:
                                 result.paths.append(relative.as_posix() + "/")
-                        elif entry.is_file(follow_symlinks=False) and permitted(relative):
-                            result.paths.append(relative.as_posix())
+                        elif entry.is_file(follow_symlinks=False):
+                            if permitted(relative):
+                                result.paths.append(relative.as_posix())
+                            elif exclusion_diagnostics is not None:
+                                exclusion_diagnostics.append((relative.as_posix(), "source_policy_exclusion"))
                     pending.extend(sorted(children, reverse=True))
         validate_project(context)
+    except AnalysisBudgetExceeded as exc:
+        result.status = RetrievalStatus.PARTIAL if result.paths else RetrievalStatus.BUDGET_EXCEEDED
+        result.limits_reached.append("analysis:" + exc.resource)
     except BudgetExceeded as exc:
         result.status = RetrievalStatus.PARTIAL if result.paths else RetrievalStatus.BUDGET_EXCEEDED
         result.limits_reached.append(str(exc))
@@ -157,11 +176,15 @@ def discover(context=None, *, recursive=True, limits=None, cancellation_event=No
     return result
 
 
-def read_source(target, context=None, *, start_line=1, limits=None, cancellation_event=None):
+def read_source(target, context=None, *, start_line=1, limits=None, cancellation_event=None, analysis_request=None):
     context = context or get_project()
     limits = limits or RetrievalLimits()
     result = RetrievalResult(context.project_id, context.revision, "read", RetrievalStatus.SUCCESS)
-    budget = Budget(limits, cancellation_event)
+    budget = Budget(limits, cancellation_event, analysis_request)
+    if analysis_request is not None:
+        analysis_request.check_authorization()
+        if context != analysis_request.context:
+            raise ProjectAccessError("Analysis context mismatch.")
     try:
         budget.check()
         if type(start_line) is not int or start_line < 1:
@@ -179,11 +202,22 @@ def read_source(target, context=None, *, start_line=1, limits=None, cancellation
             chunks = []
             while True:
                 budget.check()
-                chunk = stream.read(min(8192, limits.max_file_bytes + 1 - budget.bytes))
+                read_size = min(8192, limits.max_file_bytes + 1 - budget.bytes)
+                if analysis_request is not None:
+                    if budget.bytes >= info.st_size:
+                        break
+                    shared = analysis_request.budget
+                    remaining = shared.limits.source_bytes - dict(shared.usage.consumed)["source_bytes"]
+                    if remaining <= 0:
+                        shared.consume(source_bytes=1)  # Exhaust before reading beyond the request allowance.
+                    read_size = min(read_size, remaining)
+                chunk = stream.read(read_size)
                 if not chunk:
                     break
                 chunks.append(chunk)
                 budget.bytes += len(chunk)
+                if analysis_request is not None:
+                    analysis_request.budget.consume(source_bytes=len(chunk))
                 if budget.bytes > limits.max_file_bytes:
                     raise BudgetExceeded("file_bytes")
             data = b"".join(chunks)
@@ -192,6 +226,11 @@ def read_source(target, context=None, *, start_line=1, limits=None, cancellation
             raise ValueError("Binary source is unsupported.")
         text = data.decode("utf-8-sig", errors="strict")
         lines = text.splitlines()
+        # Empty Python modules still have a logical module span at 1:0. This
+        # opt-in is for AST analysis only; C1 display/summary behavior is unchanged.
+        total_lines = len(lines)
+        if analysis_request is not None and not lines:
+            lines = [""]
         selected, size = [], 0
         for line in lines[start_line - 1:start_line - 1 + limits.max_lines]:
             budget.check()
@@ -216,12 +255,15 @@ def read_source(target, context=None, *, start_line=1, limits=None, cancellation
         result.excerpts.append(SourceExcerpt(source_id, context.project_id, context.revision,
             relative, start_line, start_line + len(selected) - 1, excerpt_text,
             datetime.now(UTC).isoformat(), (info.st_mtime_ns, info.st_size), digest, truncated,
-            "documentation" if path.suffix.lower() in {".md", ".txt"} else "source", len(lines)))
+            "documentation" if path.suffix.lower() in {".md", ".txt"} else "source", total_lines))
         result.paths = [relative]
     except FileNotFoundError:
         result.status, result.error = RetrievalStatus.NOT_FOUND, "File was not found."
     except ProjectAccessError as exc:
         result.status, result.error = RetrievalStatus.DENIED, str(exc)
+    except AnalysisBudgetExceeded as exc:
+        result.status = RetrievalStatus.BUDGET_EXCEEDED
+        result.limits_reached.append("analysis:" + exc.resource)
     except BudgetExceeded as exc:
         result.status = RetrievalStatus.BUDGET_EXCEEDED
         result.limits_reached.append(str(exc))
