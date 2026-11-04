@@ -115,6 +115,48 @@ def test_project_scope_keeps_all_callers(project):
     assert "entire authorized project" in project.heard[-1]
 
 
+@pytest.mark.parametrize("findings_only", [False, True])
+def test_live_directory_phrase_has_one_grounded_owner(project, monkeypatch, findings_only):
+    # Explicit disposable authorization for the exact project name in the live
+    # utterance; never use the production project's default authorization.
+    context = replace(access.get_project(), project_id="jarvis")
+    monkeypatch.setattr(access, "_projects", {"jarvis": context})
+    monkeypatch.setattr(access, "_active", "jarvis")
+    project.write("services/speaker.py", "def speak():\n    pass\n")
+    project.write("commands/run.py", "from services.speaker import speak as say\ndef Run():\n    say()\n")
+    calls = []
+    original = construction.analyze_scoped_callers
+    monkeypatch.setattr(construction, "analyze_scoped_callers", lambda *a, **k: calls.append(a[0]) or original(*a, **k))
+    monkeypatch.setattr(c2, "analyze_project_relationships", lambda *a: pytest.fail("duplicate C2 ownership"))
+    question = ("Within the commands directory of my Jarvis project, " +
+        ("show verified direct callers of speak?" if findings_only else "what functions directly call speak?"))
+    response = router.process(question)
+    assert len(calls) == 1 and calls[0].roots == ("commands",)
+    assert calls[0].target.definition.path == "services/speaker.py"
+    assert "Run" in response and "runtime execution" in response
+    assert ("Additional callers may exist" in response) == findings_only
+    assert ("Complete direct static caller list" in response) == (not findings_only)
+    rows = [row for row in project.history if row["role"] == "assistant"]
+    assert len(rows) == 1 and rows[0]["source"] == "observed"
+    assert rows[0]["playback_status"] == "completed" and "[services/speaker.py:" in rows[0]["content"]
+    assert "[" not in " ".join(project.heard)
+
+
+def test_missing_directory_is_delivered_as_scope_clarification(project):
+    result = router.process("Within the missing directory, what functions directly call Speak?", allow_interruption=False)
+    assert not result.success and result.data["status"] == "clarification"
+    assert "directory could not be resolved" in project.heard[-1]
+    assert "independently verify" not in result.error
+    assert not any(row["source"] == "observed" for row in project.history)
+
+
+def test_wrong_kind_directory_has_explicit_scope_refusal(project):
+    result = router.process("Within directory voice.py, what calls Speak?", allow_interruption=False)
+    assert not result.success and result.data["status"] == "refused"
+    assert "not an allowed directory" in result.error and "evidence" not in result.error
+    assert not any(row["source"] == "observed" for row in project.history)
+
+
 @pytest.mark.parametrize("command", ["Which functions directly call Speak?", "Show callers of voice.py::Speak",
     "In this file, what calls Speak?"])
 def test_missing_scope_or_current_file_clarifies_without_analysis(project, monkeypatch, command):

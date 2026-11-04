@@ -59,9 +59,19 @@ def _canonical_path(path, request, *, directory=False):
         relative = relative[2:]
     if directory:
         relative = relative.rstrip("/")
-    resolved = resolve_project_path(request.context, relative)
+        if not permitted(relative + "/scope_probe.py"):
+            raise _Refusal("directory_scope_denied")
+    try:
+        resolved = resolve_project_path(request.context, relative)
+    except OSError:
+        if not directory:
+            raise
+        request.check_authorization()
+        raise _Clarification("directory_scope_unresolved",
+            "The caller-search directory could not be resolved in the authorized project. "
+            "Specify an existing project-relative directory.") from None
     if directory:
-        if not resolved.is_dir() or not permitted(relative + "/scope_probe.py"):
+        if not resolved.is_dir():
             raise _Refusal("directory_scope_denied")
     elif not resolved.is_file() or not relative.lower().endswith(".py") or not permitted(relative):
         raise _Refusal("file_scope_denied")

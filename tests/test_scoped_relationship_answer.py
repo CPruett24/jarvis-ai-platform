@@ -56,6 +56,128 @@ def test_natural_grammar_preserves_exact_identifiers(sentence, kind, target, pat
     assert (intent.scope_kind, intent.qualified_name, intent.filename, intent.project_qualifier) == (kind, target, path, project_name)
 
 
+@pytest.mark.parametrize("sentence,qualifier", [
+    ("Within the commands directory of my Jarvis project, what functions directly call speak?", "Jarvis"),
+    ("Within the commands directory, what functions directly call speak?", None),
+    ("In the commands directory of my Jarvis project, which functions call speak?", "Jarvis"),
+    ("Within commands, what functions directly call speak?", None),
+    ("What functions directly call speak in the commands directory of my Jarvis project?", "Jarvis"),
+    ("Which functions call speak in the commands directory?", None),
+    ("Within the commands folder of our Jarvis project, who calls speak?", "Jarvis"),
+])
+def test_directory_phrase_parse_and_real_validation(project, sentence, qualifier):
+    _, request, _ = project
+    intent = parse(sentence)
+    assert (intent.qualified_name, intent.filename, intent.scope_kind, intent.scope_path,
+            intent.project_qualifier, intent.direct, intent.error, intent.findings_only) == (
+        "speak", None, ScopeKind.DIRECTORY, "commands", qualifier, True, "", False)
+    answer = answers.prepare_scoped_caller_answer(sentence, request())
+    assert answer.status == "complete", answer.reasons
+    assert answer.scope.roots == ("commands",)
+    assert answer.scope.search_files == ("commands/run.py",)
+    assert answer.scope.target.definition.path == "services/speaker.py"
+    assert answer.analysis.target_status == "resolved"
+    assert answer.validation.publication_eligible
+    assert answer.validation.claim == CompletenessClaim.SCOPED_COMPLETE
+    assert [edge.origin.qualified_name for edge in answer.relationships] == ["Run"]
+
+
+@pytest.mark.parametrize("scope,path", [
+    ('directory "the commands directory of my Jarvis project"', "the commands directory of my Jarvis project"),
+    ('"the commands directory"', "the commands directory"),
+    ('"directory commands"', "directory commands"),
+    ('"the directory commands"', "the directory commands"),
+    ("directory archive/the commands directory", "archive/the commands directory"),
+    ("directory commands directory", "commands directory"),
+    ("archive/my-project/directory", "archive/my-project/directory"),
+    ("directory the commands directory", "the commands directory"),
+])
+def test_directory_phrase_preserves_literal_paths(project, scope, path):
+    write, request, _ = project
+    write(path + "/run.py", "from services.speaker import speak\ndef Literal():\n    speak()\n")
+    sentence = f"Within {scope}, who calls services/speaker.py::speak?"
+    intent = parse(sentence)
+    assert intent.scope_path == path and intent.project_qualifier is None
+    assert intent.filename == "services/speaker.py" and intent.qualified_name == "speak"
+    answer = answers.prepare_scoped_caller_answer(sentence, request())
+    assert answer.status == "complete", answer.reasons
+    assert answer.scope.roots == (path,)
+    assert [edge.origin.qualified_name for edge in answer.relationships] == ["Literal"]
+
+
+@pytest.mark.parametrize("path", ["the commands directory of my Jarvis project", "archive/my project/directory"])
+def test_directory_phrase_preserves_explicit_suffix_paths(path):
+    intent = parse(f'Who calls services/speaker.py::Speak in directory "{path}"?')
+    assert intent.scope_path == path and intent.project_qualifier is None and not intent.error
+    assert intent.filename == "services/speaker.py" and intent.qualified_name == "Speak"
+
+
+def test_directory_phrase_preserves_case():
+    intent = parse("In the Commands/API directory of my JaRvIs project, who calls Services/Speaker.py::Speak?")
+    assert (intent.scope_path, intent.project_qualifier, intent.filename, intent.qualified_name) == (
+        "Commands/API", "JaRvIs", "Services/Speaker.py", "Speak")
+    assert intent.direct and not intent.error
+
+
+@pytest.mark.parametrize("mode", ["unknown", "inactive", "ambiguous"])
+def test_directory_phrase_project_authorization_fails_closed(project, monkeypatch, mode):
+    _, request, root = project
+    qualifier = "Other"
+    if mode == "ambiguous":
+        access.register_project("JARVIS", root)
+        qualifier = "Jarvis"
+    elif mode == "inactive":
+        access.register_project("Other", root)
+    before = access._projects.copy(), access._active, access._revision
+    monkeypatch.setattr(answers, "discover", lambda *a, **k: pytest.fail("unauthorized scope discovery"))
+    result = answers.prepare_scoped_caller_answer(
+        f"Within the commands directory of my {qualifier} project, who calls speak?", request())
+    assert result.status == ("refused" if mode == "inactive" else "clarification")
+    assert result.reasons == (("project_qualifier_does_not_match_active_authorization",)
+        if mode == "inactive" else ("project_identity_unresolved",))
+    assert (access._projects, access._active, access._revision) == before
+    assert result.analysis is None and result.validation is None and not result.relationships
+
+
+@pytest.mark.parametrize("scope", ["the missing directory of my Jarvis project", "directory missing", "missing/child"])
+def test_missing_directory_clarifies_before_analysis(project, monkeypatch, scope):
+    _, request, _ = project
+    for name in ("discover", "analyze_scoped_callers", "validate_scoped_callers"):
+        monkeypatch.setattr(answers, name, lambda *a, **k: pytest.fail("missing scope analyzed"))
+    result = answers.prepare_scoped_caller_answer(f"Within {scope}, who calls speak?", request())
+    assert result.status == "clarification" and result.reasons == ("directory_scope_unresolved",)
+    assert "directory" in result.text and "evidence" not in result.text
+    assert result.analysis is None and result.validation is None and not result.relationships
+
+
+@pytest.mark.parametrize("cancelled", [False, True])
+def test_directory_resolution_failure_preserves_cancellation(project, monkeypatch, cancelled):
+    _, request, _ = project
+    event = threading.Event()
+    captured = request(cancellation_event=event)
+
+    def unavailable(*a, **k):
+        if cancelled:
+            event.set()
+        raise PermissionError("disposable directory unavailable")
+
+    monkeypatch.setattr(answers, "resolve_project_path", unavailable)
+    if cancelled:
+        with pytest.raises(OperationCancelled):
+            answers.prepare_scoped_caller_answer("Within the commands directory, who calls speak?", captured)
+    else:
+        result = answers.prepare_scoped_caller_answer("Within the commands directory, who calls speak?", captured)
+        assert result.status == "clarification" and result.reasons == ("directory_scope_unresolved",)
+
+
+def test_directory_phrase_conflicting_project_qualifiers_clarify(project, monkeypatch):
+    _, request, _ = project
+    monkeypatch.setattr(answers, "discover", lambda *a, **k: pytest.fail("conflicting project scope analyzed"))
+    result = answers.prepare_scoped_caller_answer(
+        "Within the commands directory of my Jarvis project, who calls speak in my Other project?", request())
+    assert result.status == "clarification" and result.reasons == ("conflicting_project_qualifiers",)
+
+
 @pytest.mark.parametrize("sentence", [
     "Trace services/speaker.py::speak reverse", "Who indirectly calls speak in my project?",
     "Show caller chains of speak within commands", "Which functions directly or indirectly call speak?",

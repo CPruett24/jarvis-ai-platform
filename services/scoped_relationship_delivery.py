@@ -29,6 +29,8 @@ class ScopedPublication:
 def _limitation(reasons):
     """Allowlisted user-facing categories; no source expressions or exceptions."""
     value = " ".join(reasons)
+    if "directory_scope_denied" in reasons:
+        return "The caller-search scope is not an allowed directory. Specify an existing authorized project-relative directory."
     if "project_qualifier" in value:
         return "That named project is not the active authorized project. Select an authorized project explicitly and repeat the question."
     if any(word in value for word in ("authorization", "containment", "project_qualifier")):
