@@ -94,7 +94,8 @@ def _import_paths(observation, inventory):
     return {path for stem in stems for path in (stem + ".py", stem + "/__init__.py") if path in inventory}
 
 
-def _construct_scope(intent, request, current_file):
+def _scope_inventory(intent, request, current_file):
+    """Shared declaration/discovery only; no target choice or support admission."""
     if intent.scope_kind is None:
         raise _Clarification("scope_required",
             "Specify the caller-search scope: a file, a directory, or the active authorized project.")
@@ -125,6 +126,11 @@ def _construct_scope(intent, request, current_file):
             path.casefold().startswith(root.casefold() + "/") for root in roots))
     if len(search) > min(256, request.budget.limits.python_files):
         raise _Refusal("scope_file_budget_exceeded")
+    return roots, search, inventory, tuple(sorted(excluded))
+
+
+def _construct_scope(intent, request, current_file):
+    roots, search, inventory, excluded = _scope_inventory(intent, request, current_file)
     sources, modules = {}, {}
 
     def read(path):
@@ -192,7 +198,7 @@ def _construct_scope(intent, request, current_file):
         SupportClosure(request.identity, tuple(sorted(support)), support_sources, True, 1 if support else 0),
         target, RelationshipKind.CALLS, "reverse", QuerySemantics.DIRECT)
     request.validate_scope(scope)
-    return scope, sources, inventory, tuple(sorted(excluded))
+    return scope, sources, inventory, excluded
 
 
 def _render(intent, scope, candidate, outcome, request):
